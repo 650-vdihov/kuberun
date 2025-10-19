@@ -1,5 +1,5 @@
 {
-  "name": "rso-app",
+  "name": "kuberun",
   "private": true,
   "scripts": {
     "build": "turbo run build",
