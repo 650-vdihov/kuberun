@@ -61,6 +61,19 @@ export default function HomeScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const colors = Colors[colorScheme ?? 'light'];
+  const accent = colorScheme === 'dark' ? '#38bdf8' : '#0ea5e9';
+  const cardBackground = isDark ? '#1c1f22' : '#ffffff';
+  const borderColor = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(15, 23, 42, 0.08)';
+  const raisedCardStyle = {
+    backgroundColor: cardBackground,
+    borderColor,
+    borderWidth: 1,
+    shadowColor: isDark ? '#000' : accent,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: isDark ? 0.25 : 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+  };
   
   // Calculate weekly statistics
   const weeklyStats = useMemo(() => {
@@ -152,8 +165,8 @@ export default function HomeScreen() {
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <View style={styles.header}>
-        <ThemedText type="title" style={styles.headerTitle}>Dashboard</ThemedText>
+      <View style={styles.screenHeader}>
+        <ThemedText type="title" style={styles.screenTitle}>Dashboard</ThemedText>
       </View>
       
       {/* Weekly Stats Section */}
@@ -164,8 +177,8 @@ export default function HomeScreen() {
         
         {/* Stats Summary Cards */}
         <View style={styles.summaryRow}>
-          <View style={[styles.summaryCard, { backgroundColor: isDark ? '#1e3a47' : '#e8f5f9' }]}>
-            <View style={[styles.iconContainer, { backgroundColor: isDark ? '#0a7ea4' : '#0a7ea4' }]}>
+          <View style={[styles.summaryCard, raisedCardStyle]}>
+            <View style={[styles.iconContainer, { backgroundColor: accent }]}>
               <TrendingUp size={20} color="#fff" />
             </View>
             <ThemedText style={[styles.summaryValue, { color: colors.text }]}>
@@ -174,8 +187,8 @@ export default function HomeScreen() {
             <ThemedText style={[styles.summaryLabel, { color: colors.icon }]}>km</ThemedText>
           </View>
           
-          <View style={[styles.summaryCard, { backgroundColor: isDark ? '#1e3a47' : '#e8f5f9' }]}>
-            <View style={[styles.iconContainer, { backgroundColor: isDark ? '#0a7ea4' : '#0a7ea4' }]}>
+          <View style={[styles.summaryCard, raisedCardStyle]}>
+            <View style={[styles.iconContainer, { backgroundColor: accent }]}>
               <Timer size={20} color="#fff" />
             </View>
             <ThemedText style={[styles.summaryValue, { color: colors.text }]}>
@@ -184,8 +197,8 @@ export default function HomeScreen() {
             <ThemedText style={[styles.summaryLabel, { color: colors.icon }]}>time</ThemedText>
           </View>
           
-          <View style={[styles.summaryCard, { backgroundColor: isDark ? '#1e3a47' : '#e8f5f9' }]}>
-            <View style={[styles.iconContainer, { backgroundColor: isDark ? '#0a7ea4' : '#0a7ea4' }]}>
+          <View style={[styles.summaryCard, raisedCardStyle]}>
+            <View style={[styles.iconContainer, { backgroundColor: accent }]}>
               <Activity size={20} color="#fff" />
             </View>
             <ThemedText style={[styles.summaryValue, { color: colors.text }]}>
@@ -203,14 +216,7 @@ export default function HomeScreen() {
             Distances by Day
           </ThemedText>
         </View>
-        <View style={[styles.chartCard, { 
-          backgroundColor: isDark ? '#1e3a47' : '#f5f5f5',
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: isDark ? 0.3 : 0.1,
-          shadowRadius: 8,
-          elevation: 4,
-        }]}>
+        <View style={[styles.chartCard, raisedCardStyle]}>
           <View style={styles.barChartContent}>
             {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, index) => {
               const distance = dailyDistancesKm[index];
@@ -229,7 +235,7 @@ export default function HomeScreen() {
                         styles.bar, 
                         { 
                           height: `${Math.max(heightPercentage, 2)}%`,
-                          backgroundColor: isDark ? '#0a7ea4' : '#0a7ea4',
+                          backgroundColor: accent,
                         }
                       ]} 
                     />
@@ -253,7 +259,7 @@ export default function HomeScreen() {
           
           <View style={styles.featuredGrid}>
             {/* Best Pace */}
-            <View style={[styles.featuredCard, { backgroundColor: isDark ? '#1e3a47' : '#f5f5f5' }]}>
+            <View style={[styles.featuredCard, raisedCardStyle]}>
               <View style={[styles.featuredIconContainer, { backgroundColor: '#10b981' }]}>
                 <Zap size={24} color="#fff" />
               </View>
@@ -268,7 +274,7 @@ export default function HomeScreen() {
             </View>
             
             {/* Longest Distance */}
-            <View style={[styles.featuredCard, { backgroundColor: isDark ? '#1e3a47' : '#f5f5f5' }]}>
+            <View style={[styles.featuredCard, raisedCardStyle]}>
               <View style={[styles.featuredIconContainer, { backgroundColor: '#f59e0b' }]}>
                 <Target size={24} color="#fff" />
               </View>
@@ -283,7 +289,7 @@ export default function HomeScreen() {
             </View>
             
             {/* Longest Duration */}
-            <View style={[styles.featuredCard, { backgroundColor: isDark ? '#1e3a47' : '#f5f5f5' }]}>
+            <View style={[styles.featuredCard, raisedCardStyle]}>
               <View style={[styles.featuredIconContainer, { backgroundColor: '#8b5cf6' }]}>
                 <Award size={24} color="#fff" />
               </View>
@@ -307,12 +313,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
+  screenHeader: {
     paddingTop: 60,
     paddingHorizontal: 20,
     paddingBottom: 24,
   },
-  headerTitle: {
+  screenTitle: {
     fontSize: 32,
     fontWeight: 'bold',
   },
@@ -336,8 +342,9 @@ const styles = StyleSheet.create({
   summaryCard: {
     flex: 1,
     flexBasis: 0,
-    padding: 16,
-    borderRadius: 16,
+    paddingVertical: 20,
+    paddingHorizontal: 18,
+    borderRadius: 20,
     alignItems: 'center',
     gap: 8,
   },
@@ -438,14 +445,9 @@ const styles = StyleSheet.create({
     flex: 1,
     flexBasis: 0,
     minWidth: 0,
-    padding: 20,
-    borderRadius: 16,
+    padding: 16,
+    borderRadius: 20,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
   },
   featuredIconContainer: {
     width: 48,

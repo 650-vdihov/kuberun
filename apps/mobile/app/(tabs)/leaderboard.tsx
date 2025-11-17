@@ -2,6 +2,8 @@ import { StyleSheet, ScrollView, View, Dimensions, FlatList, Image } from 'react
 import { useState, useRef } from 'react';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Colors } from '@/constants/theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -100,6 +102,13 @@ export default function LeaderboardScreen() {
   });
   const [isLoading, setIsLoading] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
+  const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme ?? 'light'];
+  const isDark = colorScheme === 'dark';
+  const accent = colorScheme === 'dark' ? '#38bdf8' : '#0ea5e9';
+  const cardBackground = isDark ? '#1c1f22' : '#ffffff';
+  const rowHighlight = isDark ? 'rgba(56, 189, 248, 0.25)' : 'rgba(14, 165, 233, 0.12)';
+  const borderColor = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(15, 23, 42, 0.08)';
 
   const handleScroll = (event: any) => {
     const offsetX = event.nativeEvent.contentOffset.x;
@@ -143,9 +152,26 @@ export default function LeaderboardScreen() {
     const isTopThree = item.position <= 3;
     
     return (
-      <View style={[styles.entryRow, item.isCurrentUser && styles.currentUserRow]}>
+      <View
+        style={[
+          styles.entryRow,
+          {
+            backgroundColor: cardBackground,
+            borderColor,
+            shadowColor: isDark ? '#000' : accent,
+            shadowOffset: { width: 0, height: 3 },
+            shadowOpacity: isDark ? 0.3 : 0.08,
+            shadowRadius: 10,
+            elevation: 3,
+          },
+          item.isCurrentUser && {
+            borderColor: accent,
+            backgroundColor: rowHighlight,
+          },
+        ]}
+      >
         <View style={styles.positionColumn}>
-          <ThemedText style={[styles.position, isTopThree && styles.medalText]}>
+          <ThemedText style={[styles.position, { color: colors.text }, isTopThree && styles.medalText]}>
             {getMedalIcon(item.position)}
           </ThemedText>
         </View>
@@ -153,14 +179,14 @@ export default function LeaderboardScreen() {
         <View style={styles.nameColumn}>
           <View style={styles.nameContainer}>
             <Image source={{ uri: item.profilePicture }} style={styles.profilePicture} />
-            <ThemedText style={styles.name}>
+            <ThemedText style={[styles.name, { color: colors.text }]}>
               {item.name}
             </ThemedText>
           </View>
         </View>
         
         <View style={styles.valueColumn}>
-          <ThemedText style={styles.value}>
+          <ThemedText style={[styles.value, { color: colors.text }]}>
             {item.value.toLocaleString()} {item.unit}
           </ThemedText>
         </View>
@@ -175,7 +201,7 @@ export default function LeaderboardScreen() {
 
     return (
       <View key={index} style={styles.leaderboardContainer}>
-        <ThemedText type="title" style={styles.title}>
+        <ThemedText type="title" style={[styles.leaderboardTitle, { color: colors.text }]}>
           {data.title}
         </ThemedText>
         
@@ -190,7 +216,7 @@ export default function LeaderboardScreen() {
           ListFooterComponent={
             hasMore ? (
               <View style={styles.loadingFooter}>
-                <ThemedText style={styles.loadingText}>
+                <ThemedText style={[styles.loadingText, { color: colors.icon }]}>
                   {isLoading ? 'Loading...' : 'Scroll for more'}
                 </ThemedText>
               </View>
@@ -202,7 +228,15 @@ export default function LeaderboardScreen() {
   };
 
   return (
-    <ThemedView style={styles.container}>
+    <ThemedView style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={styles.screenHeader}>
+        <ThemedText type="title" style={styles.screenTitle}>
+          Leaderboard
+        </ThemedText>
+        <ThemedText style={[styles.subtitle, { color: colors.icon }]}>
+          Compare this week's effort with friends
+        </ThemedText>
+      </View>
       <ScrollView
         ref={scrollViewRef}
         horizontal
@@ -221,7 +255,8 @@ export default function LeaderboardScreen() {
             key={index}
             style={[
               styles.dot,
-              currentIndex === index && styles.activeDot,
+              { backgroundColor: colors.icon },
+              currentIndex === index && [styles.activeDot, { backgroundColor: accent }],
             ]}
           />
         ))}
@@ -234,17 +269,31 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  screenHeader: {
+    paddingHorizontal: 20,
+    paddingTop: 60,
+    paddingBottom: 16,
+  },
+  screenTitle: {
+    fontSize: 32,
+    fontWeight: 'bold',
+  },
+  subtitle: {
+    fontSize: 15,
+    marginTop: 6,
+  },
   scrollView: {
     flex: 1,
   },
   leaderboardContainer: {
     width: SCREEN_WIDTH,
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingTop: 12,
+    paddingBottom: 32,
   },
-  title: {
-    marginBottom: 20,
-    textAlign: 'center',
+  leaderboardTitle: {
+    marginBottom: 16,
+    fontSize: 24,
   },
   headerText: {
     fontWeight: '600',
@@ -256,17 +305,15 @@ const styles = StyleSheet.create({
   },
   entryRow: {
     flexDirection: 'row',
-    paddingVertical: 10,
+    paddingVertical: 18,
     paddingHorizontal: 16,
-    paddingLeft: 6,
-    marginBottom: 6,
-    backgroundColor: 'rgba(128, 128, 128, 0.05)',
-    borderRadius: 8,
+    marginBottom: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: 'center',
   },
   currentUserRow: {
     borderWidth: 2,
-    borderColor: '#007AFF',
-    backgroundColor: 'rgba(0, 122, 255, 0.1)',
   },
   positionColumn: {
     width: 40,
@@ -286,9 +333,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     textAlign: 'center',
+    lineHeight: 28,
   },
   medalText: {
     fontSize: 24,
+    lineHeight: 32,
   },
   nameContainer: {
     flexDirection: 'row',
@@ -312,17 +361,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 20,
+    paddingVertical: 24,
+    paddingTop: 0,
     gap: 8,
   },
   dot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.83)',
   },
   activeDot: {
-    backgroundColor: '#ffffff',
     width: 24,
     borderRadius: 4,
   },
@@ -332,6 +380,5 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 14,
-    opacity: 0.6,
   },
 });

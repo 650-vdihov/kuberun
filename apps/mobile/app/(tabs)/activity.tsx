@@ -5,6 +5,8 @@ import NetInfo from '@react-native-community/netinfo';
 import { Play, Pause, Square } from 'lucide-react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Colors } from '@/constants/theme';
 
 type ActivityState = 'idle' | 'running' | 'paused';
 
@@ -36,6 +38,14 @@ const STORAGE_KEY = 'stored_activities';
 const SYNC_KEY = 'unsynced_activities';
 
 export default function ActivityScreen() {
+  const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme ?? 'light'];
+  const isDark = colorScheme === 'dark';
+  const accent = colorScheme === 'dark' ? '#38bdf8' : '#0ea5e9';
+  const surface = isDark ? '#1c1f22' : '#ffffff';
+  const borderColor = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(15, 23, 42, 0.08)';
+  const warningBackground = isDark ? 'rgba(255, 204, 112, 0.2)' : 'rgba(250, 204, 21, 0.15)';
+
   const [activityState, setActivityState] = useState<ActivityState>('idle');
   const [stats, setStats] = useState<ActivityStats>({
     elapsedTime: 0,
@@ -334,7 +344,15 @@ export default function ActivityScreen() {
   }, []);
 
   return (
-    <ThemedView style={styles.container}>
+    <ThemedView style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={styles.screenHeader}>
+        <ThemedText type="title" style={styles.screenTitle}>
+          Activity
+        </ThemedText>
+        <ThemedText style={[styles.subtitle, { color: colors.icon }]}>
+          Track your next adventure
+        </ThemedText>
+      </View>
       <ScrollView 
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -342,64 +360,68 @@ export default function ActivityScreen() {
         {/* Sync Button */}
         {activityState === 'idle' && unsyncedCount > 0 && (
           <TouchableOpacity 
-            style={[styles.syncButton, !isOnline && styles.syncButtonDisabled]}
+            style={[
+              styles.syncButton, 
+              { backgroundColor: accent },
+              !isOnline && styles.syncButtonDisabled
+            ]}
             onPress={syncUnsyncedActivities}
             disabled={!isOnline}
           >
-            <ThemedText style={styles.syncButtonText}>
+            <ThemedText style={[styles.syncButtonText, { color: colors.background }]}>
               Sync {unsyncedCount} unsynced {unsyncedCount === 1 ? 'activity' : 'activities'}
             </ThemedText>
           </TouchableOpacity>
         )}
 
         {/* Timer Section */}
-        <View style={styles.section}>
-          <ThemedText style={styles.label}>Time</ThemedText>
-          <ThemedText style={styles.mainValue}>
+        <View style={[styles.section, { backgroundColor: surface, borderColor }]}>
+          <ThemedText style={[styles.label, { color: colors.icon }]}>Time</ThemedText>
+          <ThemedText style={[styles.mainValue, { color: colors.text }]}>
             {formatTime(stats.elapsedTime)}
           </ThemedText>
         </View>
 
         {/* Distance Section */}
-        <View style={styles.section}>
-          <ThemedText style={styles.label}>Distance</ThemedText>
+        <View style={[styles.section, { backgroundColor: surface, borderColor }]}>
+          <ThemedText style={[styles.label, { color: colors.icon }]}>Distance</ThemedText>
           <View style={styles.valueRow}>
-            <ThemedText style={styles.mainValue}>
+            <ThemedText style={[styles.mainValue, { color: colors.text }]}>
               {formatDistance(stats.distance)}
             </ThemedText>
-            <ThemedText style={styles.unit}>km</ThemedText>
+            <ThemedText style={[styles.unit, { color: colors.icon }]}>km</ThemedText>
           </View>
         </View>
 
         {/* Speed Section - Split */}
-        <View style={styles.speedContainer}>
+        <View style={[styles.speedContainer, { backgroundColor: surface, borderColor }]}>
           <View style={styles.speedBox}>
-            <ThemedText style={styles.label}>Current Speed</ThemedText>
+            <ThemedText style={[styles.label, { color: colors.icon }]}>Current Speed</ThemedText>
             <View style={styles.valueRow}>
-              <ThemedText style={styles.speedValue}>
+              <ThemedText style={[styles.speedValue, { color: colors.text }]}>
                 {formatSpeed(stats.currentSpeed)}
               </ThemedText>
-              <ThemedText style={styles.speedUnit}>km/h</ThemedText>
+              <ThemedText style={[styles.speedUnit, { color: colors.icon }]}>km/h</ThemedText>
             </View>
           </View>
 
-          <View style={styles.divider} />
+          <View style={[styles.divider, { backgroundColor: borderColor }]} />
 
           <View style={styles.speedBox}>
-            <ThemedText style={styles.label}>Avg. Speed</ThemedText>
+            <ThemedText style={[styles.label, { color: colors.icon }]}>Avg. Speed</ThemedText>
             <View style={styles.valueRow}>
-              <ThemedText style={styles.speedValue}>
+              <ThemedText style={[styles.speedValue, { color: colors.text }]}>
                 {formatSpeed(stats.averageSpeed)}
               </ThemedText>
-              <ThemedText style={styles.speedUnit}>km/h</ThemedText>
+              <ThemedText style={[styles.speedUnit, { color: colors.icon }]}>km/h</ThemedText>
             </View>
           </View>
         </View>
 
         {/* Info Box */}
         {activityState !== 'idle' && !isOnline && (
-          <View style={styles.infoBox}>
-            <ThemedText style={styles.infoText}>
+          <View style={[styles.infoBox, { backgroundColor: warningBackground }]}>
+            <ThemedText style={[styles.infoText, { color: colors.text }]}>
               ⚠️ Offline mode - Activity will sync when online
             </ThemedText>
           </View>
@@ -407,19 +429,22 @@ export default function ActivityScreen() {
       </ScrollView>
 
       {/* Action Buttons */}
-      <View style={styles.buttonContainer}>
+      <View style={[styles.buttonContainer, { backgroundColor: colors.background, borderTopColor: borderColor }]}>
         {activityState === 'idle' && (
-          <TouchableOpacity style={styles.startButton} onPress={handleStart}>
-            <Play size={32} color="#FFFFFF" fill="#FFFFFF" />
+          <TouchableOpacity 
+            style={[styles.actionButton, { backgroundColor: accent }]} 
+            onPress={handleStart}
+          >
+            <Play size={32} color="#ffffffff" fill="#FFFFFF" />
           </TouchableOpacity>
         )}
 
         {activityState === 'running' && (
           <>
-            <TouchableOpacity style={styles.pauseButton} onPress={handlePause}>
+            <TouchableOpacity style={[styles.actionButton, styles.pauseButton]} onPress={handlePause}>
               <Pause size={32} color="#FFFFFF" fill="#FFFFFF" />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.endButton} onPress={handleEnd}>
+            <TouchableOpacity style={[styles.actionButton, styles.endButton]} onPress={handleEnd}>
               <Square size={32} color="#FFFFFF" fill="#FFFFFF" />
             </TouchableOpacity>
           </>
@@ -427,10 +452,13 @@ export default function ActivityScreen() {
 
         {activityState === 'paused' && (
           <>
-            <TouchableOpacity style={styles.resumeButton} onPress={handleResume}>
+            <TouchableOpacity 
+              style={[styles.actionButton, { backgroundColor: accent }]} 
+              onPress={handleResume}
+            >
               <Play size={32} color="#FFFFFF" fill="#FFFFFF" />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.endButton} onPress={handleEnd}>
+            <TouchableOpacity style={[styles.actionButton, styles.endButton]} onPress={handleEnd}>
               <Square size={32} color="#FFFFFF" fill="#FFFFFF" />
             </TouchableOpacity>
           </>
@@ -444,23 +472,38 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  screenHeader: {
+    paddingHorizontal: 20,
+    paddingTop: 60,
+    paddingBottom: 16,
+  },
+  screenTitle: {
+    fontSize: 32,
+    fontWeight: 'bold',
+  },
+  subtitle: {
+    fontSize: 15,
+    marginTop: 6,
+  },
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 120,
+    paddingTop: 12,
+    paddingBottom: 160,
   },
   section: {
     alignItems: 'center',
-    marginBottom: 45,
-    paddingVertical: 15,
+    marginBottom: 16,
+    paddingVertical: 24,
+    borderRadius: 24,
+    borderWidth: 1,
   },
   label: {
-    fontSize: 16,
-    opacity: 0.7,
+    fontSize: 13,
     marginBottom: 8,
     textTransform: 'uppercase',
     letterSpacing: 1,
+    fontWeight: '600',
   },
   valueRow: {
     flexDirection: 'row',
@@ -474,17 +517,17 @@ const styles = StyleSheet.create({
     lineHeight: 64,
   },
   unit: {
-    fontSize: 32,
-    opacity: 0.7,
+    fontSize: 28,
     marginLeft: 8,
+    fontWeight: '600',
   },
   speedContainer: {
     flexDirection: 'row',
-    marginTop: 20,
-    marginBottom: 30,
-    backgroundColor: 'rgba(128, 128, 128, 0.1)',
-    borderRadius: 16,
+    marginTop: 12,
+    marginBottom: 24,
+    borderRadius: 24,
     padding: 20,
+    borderWidth: 1,
   },
   speedBox: {
     flex: 1,
@@ -492,7 +535,6 @@ const styles = StyleSheet.create({
   },
   divider: {
     width: 1,
-    backgroundColor: 'rgba(128, 128, 128, 0.3)',
     marginHorizontal: 20,
   },
   speedValue: {
@@ -502,19 +544,15 @@ const styles = StyleSheet.create({
   },
   speedUnit: {
     fontSize: 18,
-    opacity: 0.7,
     marginLeft: 6,
   },
   infoBox: {
-    backgroundColor: 'rgba(0, 122, 255, 0.1)',
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
-    marginTop: 20,
-    gap: 8,
+    marginTop: 12,
   },
   infoText: {
     fontSize: 14,
-    opacity: 0.8,
   },
   buttonContainer: {
     position: 'absolute',
@@ -524,60 +562,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     padding: 20,
     gap: 12,
-    backgroundColor: 'transparent',
+    borderTopWidth: 1,
+    borderTopColor: 'transparent',
   },
-  startButton: {
+  actionButton: {
     flex: 1,
-    backgroundColor: '#007AFF',
     height: 70,
     borderRadius: 35,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  startButtonText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '700',
   },
   pauseButton: {
-    flex: 1,
-    backgroundColor: '#FF9500',
-    height: 70,
-    borderRadius: 35,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  resumeButton: {
-    flex: 1,
-    backgroundColor: '#007AFF',
-    height: 70,
-    borderRadius: 35,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  secondaryButtonText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '700',
+    backgroundColor: '#f59e0b',
   },
   endButton: {
-    flex: 1,
-    backgroundColor: '#FF3B30',
-    height: 70,
-    borderRadius: 35,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  endButtonText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '700',
+    backgroundColor: '#ef4444',
   },
   syncButton: {
-    backgroundColor: '#007AFF',
     paddingVertical: 12,
     paddingHorizontal: 20,
-    borderRadius: 12,
+    borderRadius: 16,
     marginBottom: 20,
     alignItems: 'center',
   },
@@ -585,7 +589,6 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   syncButtonText: {
-    color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',
   },

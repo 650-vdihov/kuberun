@@ -2,6 +2,7 @@ import { StyleSheet, View, TouchableOpacity, FlatList, ActivityIndicator, Modal,
 import { useState, useCallback } from 'react';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { Colors } from '@/constants/theme';
 import { Calendar, Clock, MapPin, TrendingUp, X, Filter } from 'lucide-react-native';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
@@ -53,6 +54,12 @@ const ALL_RUNS = generateDummyRuns(100); // Generate 100 dummy runs
 export default function HistoryScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const colors = Colors[colorScheme ?? 'light'];
+  const accent = colorScheme === 'dark' ? '#38bdf8' : '#0ea5e9';
+  const chipBackground = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(10, 126, 164, 0.12)';
+  const cardBackground = isDark ? '#1c1f22' : '#ffffff';
+  const borderColor = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(15, 23, 42, 0.08)';
+  const inputBackground = isDark ? '#1f2428' : '#f5f7f9';
   
   const [timeframeFilter, setTimeframeFilter] = useState<TimeframeFilter>('all');
   const [displayedRuns, setDisplayedRuns] = useState<RunHistory[]>(ALL_RUNS.slice(0, 20));
@@ -273,48 +280,73 @@ export default function HistoryScreen() {
       style={[
         styles.runCard,
         { 
-          backgroundColor: isDark ? '#1a1a1a' : '#ffffff',
-          borderColor: isDark ? '#333' : '#e0e0e0',
+          backgroundColor: cardBackground,
+          borderColor,
+          shadowColor: isDark ? '#000' : accent,
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: isDark ? 0.25 : 0.08,
+          shadowRadius: 12,
+          elevation: 3,
         }
       ]}
     >
       <View style={styles.runHeader}>
         <View style={styles.dateContainer}>
-          <Calendar size={16} color={isDark ? '#888' : '#666'} />
-          <ThemedText style={styles.dateText}>{formatDate(item.date)}</ThemedText>
-          <ThemedText style={styles.timeText}>{formatTime(item.date)}</ThemedText>
+          <Calendar size={16} color={colors.icon} />
+          <ThemedText style={[styles.dateText, { color: colors.text }]}>
+            {formatDate(item.date)}
+          </ThemedText>
+          <ThemedText style={[styles.timeText, { color: colors.icon }]}>
+            {formatTime(item.date)}
+          </ThemedText>
         </View>
       </View>
       
       <View style={styles.runStats}>
         <View style={styles.statItem}>
-          <MapPin size={18} color={isDark ? '#60a5fa' : '#3b82f6'} />
+          <MapPin size={18} color={accent} />
           <View style={styles.statContent}>
-            <ThemedText style={styles.statValue}>{formatDistance(item.distance)} km</ThemedText>
-            <ThemedText style={styles.statLabel}>Distance</ThemedText>
+            <ThemedText style={[styles.statValue, { color: colors.text }]}>
+              {formatDistance(item.distance)} km
+            </ThemedText>
+            <ThemedText style={[styles.statLabel, { color: colors.icon }]}>
+              Distance
+            </ThemedText>
           </View>
         </View>
         
         <View style={styles.statItem}>
-          <Clock size={18} color={isDark ? '#34d399' : '#10b981'} />
+          <Clock size={18} color={accent} />
           <View style={styles.statContent}>
-            <ThemedText style={styles.statValue}>{formatDuration(item.duration)}</ThemedText>
-            <ThemedText style={styles.statLabel}>Duration</ThemedText>
+            <ThemedText style={[styles.statValue, { color: colors.text }]}>
+              {formatDuration(item.duration)}
+            </ThemedText>
+            <ThemedText style={[styles.statLabel, { color: colors.icon }]}>
+              Duration
+            </ThemedText>
           </View>
         </View>
         
         <View style={styles.statItem}>
-          <TrendingUp size={18} color={isDark ? '#fbbf24' : '#f59e0b'} />
+          <TrendingUp size={18} color={accent} />
           <View style={styles.statContent}>
-            <ThemedText style={styles.statValue}>{formatSpeed(item.averageSpeed)} km/h</ThemedText>
-            <ThemedText style={styles.statLabel}>Avg Speed</ThemedText>
+            <ThemedText style={[styles.statValue, { color: colors.text }]}>
+              {formatSpeed(item.averageSpeed)} km/h
+            </ThemedText>
+            <ThemedText style={[styles.statLabel, { color: colors.icon }]}>
+              Avg Speed
+            </ThemedText>
           </View>
         </View>
       </View>
       
-      <View style={styles.runFooter}>
-        <ThemedText style={styles.routeName}>{item.route}</ThemedText>
-        <ThemedText style={styles.calories}>{item.calories} cal</ThemedText>
+      <View style={[styles.runFooter, { borderTopColor: borderColor }]}>
+        <ThemedText style={[styles.routeName, { color: colors.text }]}>
+          {item.route}
+        </ThemedText>
+        <ThemedText style={[styles.calories, { color: accent }]}>
+          {item.calories} cal
+        </ThemedText>
       </View>
     </TouchableOpacity>
   );
@@ -323,146 +355,100 @@ export default function HistoryScreen() {
     if (!isLoading) return null;
     return (
       <View style={styles.footer}>
-        <ActivityIndicator size="small" color={isDark ? '#60a5fa' : '#3b82f6'} />
+        <ActivityIndicator size="small" color={accent} />
       </View>
     );
   };
 
   const renderEmpty = () => (
     <View style={styles.emptyContainer}>
-      <ThemedText style={styles.emptyText}>No runs found for this timeframe</ThemedText>
+      <ThemedText style={[styles.emptyText, { color: colors.icon }]}>
+        No runs found for this timeframe
+      </ThemedText>
     </View>
   );
 
+  const getFilterButtonStyle = (filter: TimeframeFilter) => ([
+    styles.filterButton,
+    {
+      backgroundColor: timeframeFilter === filter ? accent : chipBackground,
+      borderColor: timeframeFilter === filter ? accent : 'transparent',
+    },
+  ]);
+
+  const getFilterTextStyle = (filter: TimeframeFilter) => ([
+    styles.filterText,
+    {
+      color: timeframeFilter === filter ? colors.background : colors.text,
+    },
+  ]);
+
   return (
-    <ThemedView style={styles.container}>
-      <View style={styles.header}>
-        <ThemedText type="title" style={styles.title}>Run History</ThemedText>
-        <ThemedText style={styles.subtitle}>
-          {displayedRuns.length} {displayedRuns.length === 1 ? 'run' : 'runs'}
+    <ThemedView style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={styles.screenHeader}>
+        <ThemedText type="title" style={styles.screenTitle}>History</ThemedText>
+        <ThemedText style={[styles.headerSubtitle, { color: colors.icon }]}>
+          {displayedRuns.length} {displayedRuns.length === 1 ? 'run logged' : 'runs logged'}
         </ThemedText>
       </View>
 
       {/* Timeframe Filters */}
       <View style={styles.filterContainer}>
         <TouchableOpacity
-          style={[
-            styles.filterButton,
-            timeframeFilter === 'all' && styles.filterButtonActive,
-            { 
-              backgroundColor: timeframeFilter === 'all' 
-                ? (isDark ? '#60a5fa' : '#3b82f6')
-                : (isDark ? '#2a2a2a' : '#f3f4f6'),
-            }
-          ]}
+          style={getFilterButtonStyle('all')}
           onPress={() => handleFilterChange('all')}
         >
-          <ThemedText style={[
-            styles.filterText,
-            timeframeFilter === 'all' && styles.filterTextActive
-          ]}>
+          <ThemedText style={getFilterTextStyle('all')}>
             All Time
           </ThemedText>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[
-            styles.filterButton,
-            timeframeFilter === 'today' && styles.filterButtonActive,
-            { 
-              backgroundColor: timeframeFilter === 'today' 
-                ? (isDark ? '#60a5fa' : '#3b82f6')
-                : (isDark ? '#2a2a2a' : '#f3f4f6'),
-            }
-          ]}
+          style={getFilterButtonStyle('today')}
           onPress={() => handleFilterChange('today')}
         >
-          <ThemedText style={[
-            styles.filterText,
-            timeframeFilter === 'today' && styles.filterTextActive
-          ]}>
+          <ThemedText style={getFilterTextStyle('today')}>
             Today
           </ThemedText>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[
-            styles.filterButton,
-            timeframeFilter === 'week' && styles.filterButtonActive,
-            { 
-              backgroundColor: timeframeFilter === 'week' 
-                ? (isDark ? '#60a5fa' : '#3b82f6')
-                : (isDark ? '#2a2a2a' : '#f3f4f6'),
-            }
-          ]}
+          style={getFilterButtonStyle('week')}
           onPress={() => handleFilterChange('week')}
         >
-          <ThemedText style={[
-            styles.filterText,
-            timeframeFilter === 'week' && styles.filterTextActive
-          ]}>
+          <ThemedText style={getFilterTextStyle('week')}>
             Week
           </ThemedText>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[
-            styles.filterButton,
-            timeframeFilter === 'month' && styles.filterButtonActive,
-            { 
-              backgroundColor: timeframeFilter === 'month' 
-                ? (isDark ? '#60a5fa' : '#3b82f6')
-                : (isDark ? '#2a2a2a' : '#f3f4f6'),
-            }
-          ]}
+          style={getFilterButtonStyle('month')}
           onPress={() => handleFilterChange('month')}
         >
-          <ThemedText style={[
-            styles.filterText,
-            timeframeFilter === 'month' && styles.filterTextActive
-          ]}>
+          <ThemedText style={getFilterTextStyle('month')}>
             Month
           </ThemedText>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[
-            styles.filterButton,
-            timeframeFilter === 'year' && styles.filterButtonActive,
-            { 
-              backgroundColor: timeframeFilter === 'year' 
-                ? (isDark ? '#60a5fa' : '#3b82f6')
-                : (isDark ? '#2a2a2a' : '#f3f4f6'),
-            }
-          ]}
+          style={getFilterButtonStyle('year')}
           onPress={() => handleFilterChange('year')}
         >
-          <ThemedText style={[
-            styles.filterText,
-            timeframeFilter === 'year' && styles.filterTextActive
-          ]}>
+          <ThemedText style={getFilterTextStyle('year')}>
             Year
           </ThemedText>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[
-            styles.filterButton,
-            timeframeFilter === 'custom' && styles.filterButtonActive,
-            { 
-              backgroundColor: timeframeFilter === 'custom' 
-                ? (isDark ? '#60a5fa' : '#3b82f6')
-                : (isDark ? '#2a2a2a' : '#f3f4f6'),
-            }
-          ]}
+          style={getFilterButtonStyle('custom')}
           onPress={() => handleFilterChange('custom')}
         >
           <View style={styles.customFilterContent}>
-            <Filter size={14} color={timeframeFilter === 'custom' ? '#ffffff' : (isDark ? '#aaa' : '#666')} />
-            <ThemedText style={[
-              styles.filterText,
-              timeframeFilter === 'custom' && styles.filterTextActive
-            ]}>
+            <Filter 
+              size={14} 
+              color={timeframeFilter === 'custom' ? colors.background : colors.icon} 
+            />
+            <ThemedText style={getFilterTextStyle('custom')}>
               Custom
             </ThemedText>
           </View>
@@ -477,35 +463,43 @@ export default function HistoryScreen() {
         onRequestClose={() => setShowCustomModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: isDark ? '#1a1a1a' : '#ffffff' }]}>
+          <View style={[styles.modalContent, { backgroundColor: cardBackground }]}>
             <View style={styles.modalHeader}>
-              <ThemedText style={styles.modalTitle}>Custom Date Range</ThemedText>
+              <ThemedText style={[styles.modalTitle, { color: colors.text }]}>
+                Custom Date Range
+              </ThemedText>
               <TouchableOpacity onPress={() => setShowCustomModal(false)}>
-                <X size={24} color={isDark ? '#aaa' : '#666'} />
+                <X size={24} color={colors.icon} />
               </TouchableOpacity>
             </View>
 
             <View style={styles.dateInputContainer}>
               <View style={styles.inputLabelRow}>
-                <ThemedText style={styles.inputLabel}>From Date (optional)</ThemedText>
+                <ThemedText style={[styles.inputLabel, { color: colors.text }]}>
+                  From Date (optional)
+                </ThemedText>
                 <View style={styles.quickDateButtons}>
                   <TouchableOpacity 
-                    style={styles.quickDateButton}
+                    style={[styles.quickDateButton, { backgroundColor: chipBackground }]}
                     onPress={() => setQuickDate('from', 7)}
                   >
-                    <ThemedText style={styles.quickDateText}>7d ago</ThemedText>
+                    <ThemedText style={[styles.quickDateText, { color: accent }]}>
+                      7d ago
+                    </ThemedText>
                   </TouchableOpacity>
                   <TouchableOpacity 
-                    style={styles.quickDateButton}
+                    style={[styles.quickDateButton, { backgroundColor: chipBackground }]}
                     onPress={() => setQuickDate('from', 30)}
                   >
-                    <ThemedText style={styles.quickDateText}>30d ago</ThemedText>
+                    <ThemedText style={[styles.quickDateText, { color: accent }]}>
+                      30d ago
+                    </ThemedText>
                   </TouchableOpacity>
                 </View>
               </View>
-              <View style={[styles.dateInputWrapper, { backgroundColor: isDark ? '#2a2a2a' : '#f3f4f6' }]}>
+              <View style={[styles.dateInputWrapper, { backgroundColor: inputBackground }]}>
                 <TextInput
-                  style={[styles.dateInput, { color: isDark ? '#ffffff' : '#000000' }]}
+                  style={[styles.dateInput, { color: colors.text }]}
                   placeholder="YYYY-MM-DD, MM/DD/YYYY, or DD.MM.YYYY"
                   placeholderTextColor={isDark ? '#666' : '#999'}
                   value={fromDateInput}
@@ -513,26 +507,32 @@ export default function HistoryScreen() {
                   autoCapitalize="none"
                   autoCorrect={false}
                 />
-                <Calendar size={20} color={isDark ? '#888' : '#666'} />
+                <Calendar size={20} color={colors.icon} />
               </View>
-              <ThemedText style={styles.helperText}>Leave empty for no start date limit</ThemedText>
+              <ThemedText style={[styles.helperText, { color: colors.icon }]}>
+                Leave empty for no start date limit
+              </ThemedText>
             </View>
 
             <View style={styles.dateInputContainer}>
               <View style={styles.inputLabelRow}>
-                <ThemedText style={styles.inputLabel}>To Date (optional)</ThemedText>
+                <ThemedText style={[styles.inputLabel, { color: colors.text }]}>
+                  To Date (optional)
+                </ThemedText>
                 <View style={styles.quickDateButtons}>
                   <TouchableOpacity 
-                    style={styles.quickDateButton}
+                    style={[styles.quickDateButton, { backgroundColor: chipBackground }]}
                     onPress={() => setQuickDate('to', 0)}
                   >
-                    <ThemedText style={styles.quickDateText}>Today</ThemedText>
+                    <ThemedText style={[styles.quickDateText, { color: accent }]}>
+                      Today
+                    </ThemedText>
                   </TouchableOpacity>
                 </View>
               </View>
-              <View style={[styles.dateInputWrapper, { backgroundColor: isDark ? '#2a2a2a' : '#f3f4f6' }]}>
+              <View style={[styles.dateInputWrapper, { backgroundColor: inputBackground }]}>
                 <TextInput
-                  style={[styles.dateInput, { color: isDark ? '#ffffff' : '#000000' }]}
+                  style={[styles.dateInput, { color: colors.text }]}
                   placeholder="YYYY-MM-DD, MM/DD/YYYY, or DD.MM.YYYY"
                   placeholderTextColor={isDark ? '#666' : '#999'}
                   value={toDateInput}
@@ -540,24 +540,30 @@ export default function HistoryScreen() {
                   autoCapitalize="none"
                   autoCorrect={false}
                 />
-                <Calendar size={20} color={isDark ? '#888' : '#666'} />
+                <Calendar size={20} color={colors.icon} />
               </View>
-              <ThemedText style={styles.helperText}>Leave empty for no end date limit</ThemedText>
+              <ThemedText style={[styles.helperText, { color: colors.icon }]}>
+                Leave empty for no end date limit
+              </ThemedText>
             </View>
 
             <View style={styles.modalActions}>
               <TouchableOpacity
-                style={[styles.modalButton, styles.clearButton]}
+                style={[styles.modalButton, styles.clearButton, { borderColor: accent }]}
                 onPress={clearCustomFilter}
               >
-                <ThemedText style={styles.clearButtonText}>Clear</ThemedText>
+                <ThemedText style={[styles.clearButtonText, { color: accent }]}>
+                  Clear
+                </ThemedText>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.modalButton, styles.applyButton]}
+                style={[styles.modalButton, styles.applyButton, { backgroundColor: accent }]}
                 onPress={applyCustomFilter}
               >
-                <ThemedText style={styles.applyButtonText}>Apply</ThemedText>
+                <ThemedText style={[styles.applyButtonText, { color: colors.background }]}>
+                  Apply
+                </ThemedText>
               </TouchableOpacity>
             </View>
           </View>
@@ -584,50 +590,47 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
+  screenHeader: {
     paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 10,
+    paddingTop: 60,
+    paddingBottom: 16,
   },
-  title: {
+  screenTitle: {
     fontSize: 32,
     fontWeight: 'bold',
   },
-  subtitle: {
-    fontSize: 14,
-    opacity: 0.6,
-    marginTop: 4,
+  headerSubtitle: {
+    fontSize: 15,
+    marginTop: 6,
   },
   filterContainer: {
     flexDirection: 'row',
     paddingHorizontal: 20,
-    paddingVertical: 15,
+    paddingBottom: 18,
+    paddingTop: 4,
     gap: 8,
     flexWrap: 'wrap',
   },
   filterButton: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 18,
     paddingVertical: 8,
-    borderRadius: 20,
-  },
-  filterButtonActive: {
-    // Styles applied via backgroundColor
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
   filterText: {
     fontSize: 14,
-    fontWeight: '500',
-  },
-  filterTextActive: {
-    color: '#ffffff',
+    fontWeight: '600',
   },
   listContent: {
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingBottom: 32,
+    paddingTop: 8,
   },
   runCard: {
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
+    padding: 20,
+    borderRadius: 20,
+    marginBottom: 16,
     borderWidth: 1,
   },
   runHeader: {
@@ -649,7 +652,8 @@ const styles = StyleSheet.create({
   runStats: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    marginBottom: 16,
+    gap: 12,
   },
   statItem: {
     flexDirection: 'row',
@@ -663,18 +667,18 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 16,
     fontWeight: '600',
+    lineHeight: 18,
   },
   statLabel: {
     fontSize: 11,
-    opacity: 0.6,
+    lineHeight: 18,
   },
   runFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 12,
+    paddingTop: 14,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(128, 128, 128, 0.2)',
   },
   routeName: {
     fontSize: 13,
@@ -695,7 +699,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    opacity: 0.5,
+    opacity: 0.7,
   },
   customFilterContent: {
     flexDirection: 'row',
@@ -744,13 +748,11 @@ const styles = StyleSheet.create({
   quickDateButton: {
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 4,
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    borderRadius: 6,
   },
   quickDateText: {
     fontSize: 11,
-    color: '#3b82f6',
-    fontWeight: '500',
+    fontWeight: '600',
   },
   dateInputWrapper: {
     flexDirection: 'row',
@@ -767,7 +769,6 @@ const styles = StyleSheet.create({
   },
   helperText: {
     fontSize: 12,
-    opacity: 0.6,
     marginTop: 4,
   },
   modalActions: {
@@ -784,18 +785,16 @@ const styles = StyleSheet.create({
   clearButton: {
     backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: '#666',
   },
   clearButtonText: {
     fontSize: 16,
     fontWeight: '600',
   },
   applyButton: {
-    backgroundColor: '#3b82f6',
+    borderRadius: 8,
   },
   applyButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#ffffff',
   },
 });
