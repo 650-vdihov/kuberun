@@ -7,6 +7,7 @@ import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AuthProvider, useAuth } from '@/contexts/auth-context';
+import { ClubsProvider } from '@/contexts/clubs-context';
 import { Colors } from '@/constants/theme';
 
 export const unstable_settings = {
@@ -49,6 +50,8 @@ function RootLayoutNav() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="profile" options={{ headerShown: false }} />
         <Stack.Screen name="clubs" options={{ headerShown: false }} />
+        <Stack.Screen name="club/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="invites" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>
       <StatusBar style="auto" />
@@ -59,7 +62,9 @@ function RootLayoutNav() {
 export default function RootLayout() {
   return (
     <AuthProvider>
-      <RootLayoutNav />
+      <ClubsProvider>
+        <RootLayoutNav />
+      </ClubsProvider>
     </AuthProvider>
   );
 }

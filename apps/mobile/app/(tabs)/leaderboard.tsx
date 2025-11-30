@@ -1,9 +1,11 @@
-import { StyleSheet, ScrollView, View, Dimensions, FlatList, Image } from 'react-native';
-import { useState, useRef } from 'react';
+import { StyleSheet, ScrollView, View, Dimensions, FlatList, Image, TouchableOpacity, Modal, Pressable } from 'react-native';
+import { useState, useRef, useMemo } from 'react';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
+import { useClubs } from '@/contexts/clubs-context';
+import { ChevronDown, Users, Check } from 'lucide-react-native';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -21,80 +23,65 @@ interface LeaderboardData {
   entries: LeaderboardEntry[];
 }
 
-const MOCK_LEADERBOARDS: LeaderboardData[] = [
-  {
-    title: 'Distance',
-    entries: [
-      { position: 1, name: 'Sarah Runner', profilePicture: 'https://i.pravatar.cc/150?img=1', value: 245.8, unit: 'km' },
-      { position: 2, name: 'Mike Sprint', profilePicture: 'https://i.pravatar.cc/150?img=12', value: 198.2, unit: 'km' },
-      { position: 3, name: 'Emma Fast', profilePicture: 'https://i.pravatar.cc/150?img=5', value: 187.5, unit: 'km' },
-      { position: 4, name: 'John Walker', profilePicture: 'https://i.pravatar.cc/150?img=13', value: 156.3, unit: 'km' },
-      { position: 5, name: 'Lisa Active', profilePicture: 'https://i.pravatar.cc/150?img=9', value: 142.9, unit: 'km' },
-      { position: 6, name: 'Tom Jogger', profilePicture: 'https://i.pravatar.cc/150?img=15', value: 128.4, unit: 'km' },
-      { position: 7, name: 'Amy Hiker', profilePicture: 'https://i.pravatar.cc/150?img=10', value: 115.7, unit: 'km' },
-      { position: 8, name: 'Chris Move', profilePicture: 'https://i.pravatar.cc/150?img=14', value: 98.6, unit: 'km' },
-      { position: 9, name: 'You', profilePicture: 'https://i.pravatar.cc/150?img=33', value: 89.3, unit: 'km', isCurrentUser: true },
-      { position: 10, name: 'Dave Runner', profilePicture: 'https://i.pravatar.cc/150?img=16', value: 85.2, unit: 'km' },
-    ],
-  },
-  {
-    title: 'Active Time',
-    entries: [
-      { position: 1, name: 'Emma Fast', profilePicture: 'https://i.pravatar.cc/150?img=5', value: 86.5, unit: 'hrs' },
-      { position: 2, name: 'Mike Sprint', profilePicture: 'https://i.pravatar.cc/150?img=12', value: 72.3, unit: 'hrs' },
-      { position: 3, name: 'Sarah Runner', profilePicture: 'https://i.pravatar.cc/150?img=1', value: 68.9, unit: 'hrs' },
-      { position: 4, name: 'Lisa Active', profilePicture: 'https://i.pravatar.cc/150?img=9', value: 61.2, unit: 'hrs' },
-      { position: 5, name: 'Tom Jogger', profilePicture: 'https://i.pravatar.cc/150?img=15', value: 55.8, unit: 'hrs' },
-      { position: 6, name: 'John Walker', profilePicture: 'https://i.pravatar.cc/150?img=13', value: 48.4, unit: 'hrs' },
-      { position: 7, name: 'Amy Hiker', profilePicture: 'https://i.pravatar.cc/150?img=10', value: 42.7, unit: 'hrs' },
-      { position: 8, name: 'Chris Move', profilePicture: 'https://i.pravatar.cc/150?img=14', value: 38.1, unit: 'hrs' },
-      { position: 9, name: 'Dave Runner', profilePicture: 'https://i.pravatar.cc/150?img=16', value: 34.5, unit: 'hrs' },
-      { position: 10, name: 'Nina Speed', profilePicture: 'https://i.pravatar.cc/150?img=20', value: 31.2, unit: 'hrs' },
-      { position: 11, name: 'Oscar Fast', profilePicture: 'https://i.pravatar.cc/150?img=17', value: 28.9, unit: 'hrs' },
-      { position: 12, name: 'You', profilePicture: 'https://i.pravatar.cc/150?img=33', value: 26.4, unit: 'hrs', isCurrentUser: true },
-      { position: 13, name: 'Paula Dash', profilePicture: 'https://i.pravatar.cc/150?img=22', value: 23.8, unit: 'hrs' },
-      { position: 14, name: 'Quinn Move', profilePicture: 'https://i.pravatar.cc/150?img=18', value: 21.5, unit: 'hrs' },
-      { position: 15, name: 'Rachel Go', profilePicture: 'https://i.pravatar.cc/150?img=24', value: 19.3, unit: 'hrs' },
-      { position: 16, name: 'Steve Walk', profilePicture: 'https://i.pravatar.cc/150?img=19', value: 17.2, unit: 'hrs' },
-      { position: 17, name: 'Tina Pace', profilePicture: 'https://i.pravatar.cc/150?img=25', value: 15.8, unit: 'hrs' },
-      { position: 18, name: 'Uma Active', profilePicture: 'https://i.pravatar.cc/150?img=26', value: 14.1, unit: 'hrs' },
-      { position: 19, name: 'Victor Run', profilePicture: 'https://i.pravatar.cc/150?img=21', value: 12.6, unit: 'hrs' },
-      { position: 20, name: 'Wendy Jog', profilePicture: 'https://i.pravatar.cc/150?img=28', value: 10.9, unit: 'hrs' },
-      { position: 21, name: 'Xavier Swift', profilePicture: 'https://i.pravatar.cc/150?img=29', value: 9.8, unit: 'hrs' },
-      { position: 22, name: 'Yara Motion', profilePicture: 'https://i.pravatar.cc/150?img=30', value: 8.7, unit: 'hrs' },
-      { position: 23, name: 'Zack Rush', profilePicture: 'https://i.pravatar.cc/150?img=31', value: 7.9, unit: 'hrs' },
-      { position: 24, name: 'Alice Stride', profilePicture: 'https://i.pravatar.cc/150?img=32', value: 7.2, unit: 'hrs' },
-      { position: 25, name: 'Ben Quick', profilePicture: 'https://i.pravatar.cc/150?img=34', value: 6.8, unit: 'hrs' },
-      { position: 26, name: 'Chloe Fit', profilePicture: 'https://i.pravatar.cc/150?img=35', value: 6.3, unit: 'hrs' },
-      { position: 27, name: 'Dylan Go', profilePicture: 'https://i.pravatar.cc/150?img=36', value: 5.9, unit: 'hrs' },
-      { position: 28, name: 'Eva Zoom', profilePicture: 'https://i.pravatar.cc/150?img=37', value: 5.5, unit: 'hrs' },
-      { position: 29, name: 'Felix Pace', profilePicture: 'https://i.pravatar.cc/150?img=38', value: 5.1, unit: 'hrs' },
-      { position: 30, name: 'Grace Move', profilePicture: 'https://i.pravatar.cc/150?img=39', value: 4.8, unit: 'hrs' },
-      { position: 31, name: 'Henry Fast', profilePicture: 'https://i.pravatar.cc/150?img=40', value: 4.5, unit: 'hrs' },
-      { position: 32, name: 'Iris Run', profilePicture: 'https://i.pravatar.cc/150?img=41', value: 4.2, unit: 'hrs' },
-      { position: 33, name: 'Jake Dash', profilePicture: 'https://i.pravatar.cc/150?img=42', value: 3.9, unit: 'hrs' },
-      { position: 34, name: 'Kara Speed', profilePicture: 'https://i.pravatar.cc/150?img=43', value: 3.7, unit: 'hrs' },
-      { position: 35, name: 'Leo Sprint', profilePicture: 'https://i.pravatar.cc/150?img=44', value: 3.4, unit: 'hrs' },
-      { position: 36, name: 'Mia Active', profilePicture: 'https://i.pravatar.cc/150?img=45', value: 3.2, unit: 'hrs' },
-      { position: 37, name: 'Noah Walk', profilePicture: 'https://i.pravatar.cc/150?img=46', value: 2.9, unit: 'hrs' },
-      { position: 38, name: 'Olivia Jog', profilePicture: 'https://i.pravatar.cc/150?img=47', value: 2.7, unit: 'hrs' },
-      { position: 39, name: 'Peter Stride', profilePicture: 'https://i.pravatar.cc/150?img=48', value: 2.5, unit: 'hrs' },
-      { position: 40, name: 'Quinn Rush', profilePicture: 'https://i.pravatar.cc/150?img=49', value: 2.3, unit: 'hrs' },
-      { position: 41, name: 'Ruby Motion', profilePicture: 'https://i.pravatar.cc/150?img=50', value: 2.1, unit: 'hrs' },
-      { position: 42, name: 'Sam Pace', profilePicture: 'https://i.pravatar.cc/150?img=51', value: 1.9, unit: 'hrs' },
-      { position: 43, name: 'Tara Zoom', profilePicture: 'https://i.pravatar.cc/150?img=52', value: 1.7, unit: 'hrs' },
-      { position: 44, name: 'Umar Swift', profilePicture: 'https://i.pravatar.cc/150?img=53', value: 1.5, unit: 'hrs' },
-      { position: 45, name: 'Vera Fit', profilePicture: 'https://i.pravatar.cc/150?img=54', value: 1.4, unit: 'hrs' },
-      { position: 46, name: 'Will Run', profilePicture: 'https://i.pravatar.cc/150?img=55', value: 1.2, unit: 'hrs' },
-      { position: 47, name: 'Xena Go', profilePicture: 'https://i.pravatar.cc/150?img=56', value: 1.0, unit: 'hrs' },
-      { position: 48, name: 'Yuri Active', profilePicture: 'https://i.pravatar.cc/150?img=57', value: 0.9, unit: 'hrs' },
-      { position: 49, name: 'Zara Move', profilePicture: 'https://i.pravatar.cc/150?img=58', value: 0.7, unit: 'hrs' },
-      { position: 50, name: 'Alex Speed', profilePicture: 'https://i.pravatar.cc/150?img=59', value: 0.5, unit: 'hrs' },
-    ],
-  }
-];
+type WeekType = 'this' | 'last';
+
+// Generate mock leaderboard data for a club
+const generateClubLeaderboard = (clubId: string, clubName: string, week: WeekType): LeaderboardData[] => {
+  // Use clubId to seed different data for each club
+  const seed = clubId.charCodeAt(0) || 1;
+  // Different multiplier for last week to simulate different results
+  const weekMultiplier = week === 'last' ? 0.85 : 1;
+  
+  // Shuffle positions slightly for last week
+  const distanceNames = week === 'last' 
+    ? ['Mike Sprint', 'Sarah Runner', 'John Walker', 'Emma Fast', 'Tom Jogger', 'Lisa Active', 'You', 'Amy Hiker', 'Chris Move', 'Dave Runner']
+    : ['Sarah Runner', 'Mike Sprint', 'Emma Fast', 'John Walker', 'Lisa Active', 'Tom Jogger', 'Amy Hiker', 'Chris Move', 'You', 'Dave Runner'];
+  
+  const distanceImages = week === 'last'
+    ? [12, 1, 13, 5, 15, 9, 33, 10, 14, 16]
+    : [1, 12, 5, 13, 9, 15, 10, 14, 33, 16];
+  
+  const distanceValues = [245.8, 198.2, 187.5, 156.3, 142.9, 128.4, 115.7, 98.6, 89.3, 85.2];
+  
+  const distanceEntries: LeaderboardEntry[] = distanceNames.map((name, i) => ({
+    position: i + 1,
+    name,
+    profilePicture: `https://i.pravatar.cc/150?img=${distanceImages[i]}`,
+    value: Math.round(distanceValues[i] * (seed % 3 + 0.5) * weekMultiplier * 10) / 10,
+    unit: 'km',
+    isCurrentUser: name === 'You',
+  }));
+
+  const timeNames = week === 'last'
+    ? ['Mike Sprint', 'Emma Fast', 'Lisa Active', 'Sarah Runner', 'You', 'Tom Jogger', 'John Walker', 'Amy Hiker', 'Chris Move', 'Dave Runner']
+    : ['Emma Fast', 'Mike Sprint', 'Sarah Runner', 'Lisa Active', 'Tom Jogger', 'John Walker', 'You', 'Amy Hiker', 'Chris Move', 'Dave Runner'];
+  
+  const timeImages = week === 'last'
+    ? [12, 5, 9, 1, 33, 15, 13, 10, 14, 16]
+    : [5, 12, 1, 9, 15, 13, 33, 10, 14, 16];
+  
+  const timeValues = [86.5, 72.3, 68.9, 61.2, 55.8, 48.4, 42.7, 38.1, 34.5, 31.2];
+  
+  const timeEntries: LeaderboardEntry[] = timeNames.map((name, i) => ({
+    position: i + 1,
+    name,
+    profilePicture: `https://i.pravatar.cc/150?img=${timeImages[i]}`,
+    value: Math.round(timeValues[i] * (seed % 2 + 0.7) * weekMultiplier * 10) / 10,
+    unit: 'hrs',
+    isCurrentUser: name === 'You',
+  }));
+
+  return [
+    { title: 'Distance', entries: distanceEntries },
+    { title: 'Active Time', entries: timeEntries },
+  ];
+};
 
 export default function LeaderboardScreen() {
+  const { memberships } = useClubs();
+  const [selectedClubId, setSelectedClubId] = useState<string | null>(null);
+  const [showClubPicker, setShowClubPicker] = useState(false);
+  const [selectedWeek, setSelectedWeek] = useState<WeekType>('this');
   const [currentIndex, setCurrentIndex] = useState(0);
   const [displayedItems, setDisplayedItems] = useState<{[key: number]: number}>({
     0: 10,
@@ -109,6 +96,29 @@ export default function LeaderboardScreen() {
   const cardBackground = isDark ? '#1c1f22' : '#ffffff';
   const rowHighlight = isDark ? 'rgba(56, 189, 248, 0.25)' : 'rgba(14, 165, 233, 0.12)';
   const borderColor = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(15, 23, 42, 0.08)';
+
+  // Get selected club or default to first club
+  const selectedClub = useMemo(() => {
+    if (selectedClubId) {
+      return memberships.find(m => m.club.id === selectedClubId)?.club;
+    }
+    return memberships[0]?.club;
+  }, [selectedClubId, memberships]);
+
+  // Generate leaderboard data for selected club and week
+  const leaderboardData = useMemo(() => {
+    if (!selectedClub) return [];
+    return generateClubLeaderboard(selectedClub.id, selectedClub.name, selectedWeek);
+  }, [selectedClub, selectedWeek]);
+
+  const handleClubSelect = (clubId: string) => {
+    setSelectedClubId(clubId);
+    setShowClubPicker(false);
+    // Reset displayed items when switching clubs
+    setDisplayedItems({ 0: 10, 1: 10 });
+    setCurrentIndex(0);
+    scrollViewRef.current?.scrollTo({ x: 0, animated: false });
+  };
 
   const handleScroll = (event: any) => {
     const offsetX = event.nativeEvent.contentOffset.x;
@@ -130,10 +140,10 @@ export default function LeaderboardScreen() {
   };
 
   const loadMore = (leaderboardIndex: number) => {
-    if (isLoading) return;
+    if (isLoading || !leaderboardData[leaderboardIndex]) return;
     
     const currentCount = displayedItems[leaderboardIndex] || 10;
-    const totalItems = MOCK_LEADERBOARDS[leaderboardIndex].entries.length;
+    const totalItems = leaderboardData[leaderboardIndex].entries.length;
     
     if (currentCount >= totalItems) return;
     
@@ -234,33 +244,147 @@ export default function LeaderboardScreen() {
           Leaderboard
         </ThemedText>
         <ThemedText style={[styles.subtitle, { color: colors.icon }]}>
-          Compare this week's effort with friends
+          {selectedWeek === 'this' ? "Compare this week's effort with club members" : "Last week's final standings"}
         </ThemedText>
       </View>
-      <ScrollView
-        ref={scrollViewRef}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        onScroll={handleScroll}
-        scrollEventThrottle={16}
-        style={styles.scrollView}
-      >
-        {MOCK_LEADERBOARDS.map((data, index) => renderLeaderboard(data, index))}
-      </ScrollView>
 
-      <View style={styles.pagination}>
-        {MOCK_LEADERBOARDS.map((_, index) => (
-          <View
-            key={index}
-            style={[
-              styles.dot,
-              { backgroundColor: colors.icon },
-              currentIndex === index && [styles.activeDot, { backgroundColor: accent }],
-            ]}
-          />
-        ))}
+      {/* Week Switcher */}
+      <View style={styles.weekSwitcher}>
+        <TouchableOpacity
+          style={[
+            styles.weekTab,
+            { borderColor },
+            selectedWeek === 'this' && { backgroundColor: accent, borderColor: accent },
+          ]}
+          onPress={() => setSelectedWeek('this')}
+        >
+          <ThemedText style={[
+            styles.weekTabText,
+            { color: selectedWeek === 'this' ? '#fff' : colors.text },
+          ]}>
+            This Week
+          </ThemedText>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.weekTab,
+            { borderColor },
+            selectedWeek === 'last' && { backgroundColor: accent, borderColor: accent },
+          ]}
+          onPress={() => setSelectedWeek('last')}
+        >
+          <ThemedText style={[
+            styles.weekTabText,
+            { color: selectedWeek === 'last' ? '#fff' : colors.text },
+          ]}>
+            Last Week
+          </ThemedText>
+        </TouchableOpacity>
       </View>
+
+      {/* Club Switcher */}
+      {memberships.length > 0 ? (
+        <TouchableOpacity
+          style={[styles.clubSwitcher, { backgroundColor: cardBackground, borderColor }]}
+          onPress={() => setShowClubPicker(true)}
+        >
+          <View style={styles.clubSwitcherContent}>
+            <View style={[styles.clubIcon, { backgroundColor: accent + '20' }]}>
+              <Users size={18} color={accent} />
+            </View>
+            <ThemedText style={[styles.clubName, { color: colors.text }]}>
+              {selectedClub?.name || 'Select a club'}
+            </ThemedText>
+          </View>
+          <ChevronDown size={20} color={colors.icon} />
+        </TouchableOpacity>
+      ) : (
+        <View style={[styles.noClubsBanner, { backgroundColor: cardBackground, borderColor }]}>
+          <Users size={24} color={colors.icon} />
+          <ThemedText style={[styles.noClubsText, { color: colors.icon }]}>
+            Join a club to see leaderboards
+          </ThemedText>
+        </View>
+      )}
+
+      {leaderboardData.length > 0 ? (
+        <>
+          <ScrollView
+            ref={scrollViewRef}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            onScroll={handleScroll}
+            scrollEventThrottle={16}
+            style={styles.scrollView}
+          >
+            {leaderboardData.map((data, index) => renderLeaderboard(data, index))}
+          </ScrollView>
+
+          <View style={styles.pagination}>
+            {leaderboardData.map((_, index) => (
+              <View
+                key={index}
+                style={[
+                  styles.dot,
+                  { backgroundColor: colors.icon },
+                  currentIndex === index && [styles.activeDot, { backgroundColor: accent }],
+                ]}
+              />
+            ))}
+          </View>
+        </>
+      ) : (
+        <View style={styles.emptyState}>
+          <ThemedText style={[styles.emptyText, { color: colors.icon }]}>
+            No leaderboard data available
+          </ThemedText>
+        </View>
+      )}
+
+      {/* Club Picker Dropdown */}
+      <Modal
+        visible={showClubPicker}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowClubPicker(false)}
+      >
+        <Pressable 
+          style={styles.dropdownOverlay} 
+          onPress={() => setShowClubPicker(false)}
+        >
+          <Pressable 
+            style={[
+              styles.dropdownContainer, 
+              { 
+                backgroundColor: cardBackground, 
+                borderColor,
+                shadowColor: isDark ? '#000' : '#64748b',
+              }
+            ]}
+            onPress={(e) => e.stopPropagation()}
+          >
+            {memberships.map((membership, index) => (
+              <TouchableOpacity
+                key={membership.club.id}
+                style={[
+                  styles.dropdownOption,
+                  index < memberships.length - 1 && { borderBottomWidth: 1, borderBottomColor: borderColor },
+                  (selectedClub?.id === membership.club.id) && { backgroundColor: accent + '10' },
+                ]}
+                onPress={() => handleClubSelect(membership.club.id)}
+              >
+                <ThemedText style={[styles.dropdownOptionText, { color: colors.text }]}>
+                  {membership.club.name}
+                </ThemedText>
+                {(selectedClub?.id === membership.club.id) && (
+                  <Check size={18} color={accent} />
+                )}
+              </TouchableOpacity>
+            ))}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </ThemedView>
   );
 }
@@ -281,6 +405,69 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 15,
     marginTop: 6,
+  },
+  weekSwitcher: {
+    flexDirection: 'row',
+    marginHorizontal: 20,
+    marginTop: 16,
+    gap: 10,
+  },
+  weekTab: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  weekTabText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  clubSwitcher: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    marginHorizontal: 20,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  clubSwitcherContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  clubIcon: {
+    marginRight: 10,
+  },
+  clubName: {
+    fontSize: 15,
+    fontWeight: '500',
+    flex: 1,
+  },
+  noClubsBanner: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+  },
+  noClubsText: {
+    fontSize: 16,
+    textAlign: 'center',
+    opacity: 0.7,
+  },
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+    paddingVertical: 60,
+  },
+  emptyText: {
+    fontSize: 16,
+    textAlign: 'center',
+    opacity: 0.7,
   },
   scrollView: {
     flex: 1,
@@ -380,5 +567,31 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 14,
+  },
+  dropdownOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    paddingTop: 180,
+    paddingHorizontal: 20,
+  },
+  dropdownContainer: {
+    borderRadius: 12,
+    borderWidth: 1,
+    overflow: 'hidden',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  dropdownOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  dropdownOptionText: {
+    fontSize: 15,
+    fontWeight: '500',
   },
 });

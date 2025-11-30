@@ -10,11 +10,12 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { User, Users, LogOut, X } from "lucide-react-native";
+import { User, Users, LogOut, X, Mail } from "lucide-react-native";
 
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useAuth } from "@/contexts/auth-context";
+import { useClubs } from "@/contexts/clubs-context";
 
 export function UserMenu() {
     const [isOpen, setIsOpen] = useState(false);
@@ -23,6 +24,10 @@ export function UserMenu() {
     const insets = useSafeAreaInsets();
     const colors = Colors[colorScheme ?? "light"];
     const { user, signOut } = useAuth();
+    const { invites } = useClubs();
+    
+    // Count pending invites
+    const pendingInvitesCount = invites.filter(i => i.status === 'pending').length;
     
     // Use auth user data with fallback for avatar
     // user.image comes from better-auth User type
@@ -57,6 +62,14 @@ export function UserMenu() {
                         style={[styles.avatarPlaceholder, { backgroundColor: colors.tint }]}
                     >
                         <User size={20} color={colors.background} />
+                    </View>
+                )}
+                {/* Notification Badge */}
+                {pendingInvitesCount > 0 && (
+                    <View style={styles.notificationBadge}>
+                        <Text style={styles.notificationBadgeText}>
+                            {pendingInvitesCount > 9 ? '9+' : pendingInvitesCount}
+                        </Text>
                     </View>
                 )}
             </TouchableOpacity>
@@ -135,6 +148,30 @@ export function UserMenu() {
                                 Clubs
                             </Text>
                         </Pressable>
+
+                        <Pressable
+                            style={({ pressed }) => [
+                                styles.menuItem,
+                                {
+                                    backgroundColor: pressed ? colors.icon + "20" : "transparent",
+                                },
+                            ]}
+                            onPress={() => handleNavigate("/invites")}
+                        >
+                            <Mail size={24} color={colors.text} />
+                            <View style={styles.menuItemWithBadge}>
+                                <Text style={[styles.menuItemText, { color: colors.text }]}>
+                                    Invites
+                                </Text>
+                                {pendingInvitesCount > 0 && (
+                                    <View style={[styles.menuBadge, { backgroundColor: colors.tint }]}>
+                                        <Text style={[styles.menuBadgeText, { color: colors.background }]}>
+                                            {pendingInvitesCount}
+                                        </Text>
+                                    </View>
+                                )}
+                            </View>
+                        </Pressable>
                     </View>
 
                     {/* Sign Out Button at Bottom */}
@@ -168,7 +205,7 @@ const styles = StyleSheet.create({
         height: 40,
         borderRadius: 20,
         borderWidth: 1,
-        overflow: "hidden",
+        overflow: "visible",
         zIndex: 100,
     },
     avatarImage: {
@@ -182,6 +219,23 @@ const styles = StyleSheet.create({
         borderRadius: 20,
         justifyContent: "center",
         alignItems: "center",
+    },
+    notificationBadge: {
+        position: "absolute",
+        top: -4,
+        right: -4,
+        minWidth: 18,
+        height: 18,
+        borderRadius: 9,
+        backgroundColor: "#dc2626",
+        justifyContent: "center",
+        alignItems: "center",
+        paddingHorizontal: 4,
+    },
+    notificationBadgeText: {
+        color: "#fff",
+        fontSize: 11,
+        fontWeight: "700",
     },
     overlay: {
         flex: 1,
@@ -234,6 +288,23 @@ const styles = StyleSheet.create({
     menuItemText: {
         fontSize: 18,
         fontWeight: "500",
+    },
+    menuItemWithBadge: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 10,
+    },
+    menuBadge: {
+        minWidth: 22,
+        height: 22,
+        borderRadius: 11,
+        justifyContent: "center",
+        alignItems: "center",
+        paddingHorizontal: 6,
+    },
+    menuBadgeText: {
+        fontSize: 12,
+        fontWeight: "700",
     },
     logoutContainer: {
         position: "absolute",
