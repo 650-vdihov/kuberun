@@ -159,6 +159,28 @@ importers:
 
   packages/typescript-config: {}
 
+  services/auth:
+    dependencies:
+      '@hono/node-server':
+        specifier: ^1.19.6
+        version: 1.19.6(hono@4.10.7)
+      dotenv:
+        specifier: ^17.2.3
+        version: 17.2.3
+      hono:
+        specifier: ^4.10.7
+        version: 4.10.7
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.17
+        version: 20.19.25
+      tsx:
+        specifier: ^4.7.1
+        version: 4.20.6
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.2
+
   services/users:
     dependencies:
       '@hono/node-server':
@@ -2233,6 +2255,10 @@ packages:
     resolution: {integrity: sha512-47qPchRCykZC03FhkYAhrvwU4xDBFIj1QPqaarj6mdM/hgUzfPHcpkHJOn3mJAufFeeAxAzeGsr5X0M4k6fLZQ==}
     engines: {node: '>=12'}
 
+  dotenv@17.2.3:
+    resolution: {integrity: sha512-JVUnt+DUIzu87TABbhPmNfVdBDt18BLOWjMUFJMSi/Qqg7NTYtabbvSNJGOJ7afbRuv9D/lngizHtP7QyLQ+9w==}
+    engines: {node: '>=12'}
+
   dunder-proto@1.0.1:
     resolution: {integrity: sha512-KIN/nDJBQRcXw0MLVhZE9iQHmG68qAVIBg9CqmUYjmQIhgij9U5MFvrqkUL5FbtyyzZuOeOt0zdeRe4UY7ct+A==}
     engines: {node: '>= 0.4'}
@@ -2874,6 +2900,10 @@ packages:
 
   hono@4.10.6:
     resolution: {integrity: sha512-BIdolzGpDO9MQ4nu3AUuDwHZZ+KViNm+EZ75Ae55eMXMqLVhDFqEMXxtUe9Qh8hjL+pIna/frs2j6Y2yD5Ua/g==}
+    engines: {node: '>=16.9.0'}
+
+  hono@4.10.7:
+    resolution: {integrity: sha512-icXIITfw/07Q88nLSkB9aiUrd8rYzSweK681Kjo/TSggaGbOX4RRyxxm71v+3PC8C/j+4rlxGeoTRxQDkaJkUw==}
     engines: {node: '>=16.9.0'}
 
   hosted-git-info@7.0.2:
@@ -5760,6 +5790,10 @@ snapshots:
     dependencies:
       hono: 4.10.6
 
+  '@hono/node-server@1.19.6(hono@4.10.7)':
+    dependencies:
+      hono: 4.10.7
+
   '@humanfs/core@0.19.1': {}
 
   '@humanfs/node@0.16.7':
@@ -7131,6 +7165,8 @@ snapshots:
 
   dotenv@16.4.7: {}
 
+  dotenv@17.2.3: {}
+
   dunder-proto@1.0.1:
     dependencies:
       call-bind-apply-helpers: 1.0.2
@@ -7947,6 +7983,8 @@ snapshots:
       react-is: 16.13.1
 
   hono@4.10.6: {}
+
+  hono@4.10.7: {}
 
   hosted-git-info@7.0.2:
     dependencies:
