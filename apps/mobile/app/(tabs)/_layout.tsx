@@ -1,8 +1,11 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
+import { View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { House, ClipboardClock, Timer, Trophy } from 'lucide-react-native';
 
 import { HapticTab } from '@/components/haptic-tab';
+import { UserMenu } from '@/components/user-menu';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
@@ -10,16 +13,26 @@ export default function TabLayout() {
   const colorScheme = useColorScheme();
 
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        headerShown: false,
-        tabBarButton: HapticTab,
-        tabBarShowLabel: false,
-        tabBarStyle: {
-          paddingTop: 10,
-        },
-      }}>
+    <SafeAreaView 
+      style={{ 
+        flex: 1, 
+        backgroundColor: Colors[colorScheme ?? 'light'].background 
+      }} 
+      edges={['top']}
+    >
+      <View style={{ flex: 1 }}>
+        {/* User Avatar Menu - Floating Overlay */}
+        <UserMenu />
+        <Tabs
+        screenOptions={{
+          tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+          headerShown: false,
+          tabBarButton: HapticTab,
+          tabBarShowLabel: false,
+          tabBarStyle: {
+            paddingTop: 10,
+          },
+        }}>
       <Tabs.Screen
         name="index"
         options={{
@@ -55,5 +68,7 @@ export default function TabLayout() {
         }}
       />
     </Tabs>
+      </View>
+    </SafeAreaView>
   );
 }
