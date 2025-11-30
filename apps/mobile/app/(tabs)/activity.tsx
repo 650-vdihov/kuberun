@@ -474,7 +474,7 @@ const styles = StyleSheet.create({
   },
   screenHeader: {
     paddingHorizontal: 20,
-    paddingTop: 60,
+    paddingTop: 30,
     paddingBottom: 16,
   },
   screenTitle: {
