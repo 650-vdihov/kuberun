@@ -14,6 +14,7 @@ import { User, Users, LogOut, X } from "lucide-react-native";
 
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { useAuth } from "@/contexts/auth-context";
 
 export function UserMenu() {
     const [isOpen, setIsOpen] = useState(false);
@@ -21,11 +22,14 @@ export function UserMenu() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const colors = Colors[colorScheme ?? "light"];
-    const user = {
-        id: "1",
-        name: "John Doe",
-        email: "john.doe@example.com",
-        image: 'https://i.pravatar.cc/150?img=1',
+    const { user, signOut } = useAuth();
+    
+    // Use auth user data with fallback for avatar
+    // user.image comes from better-auth User type
+    const displayUser = {
+        name: user?.name ?? "User",
+        email: user?.email ?? "",
+        image: user?.image ?? 'https://i.pravatar.cc/150?img=1',
     };
 
     const handleNavigate = (route: string) => {
@@ -33,10 +37,9 @@ export function UserMenu() {
         router.push(route as any);
     };
 
-    const handleLogout = () => {
+    const handleSignOut = async () => {
         setIsOpen(false);
-        // TODO: Implement actual logout logic
-        console.log("Logout pressed");
+        await signOut();
     };
 
     return (
@@ -47,8 +50,8 @@ export function UserMenu() {
                 onPress={() => setIsOpen(true)}
                 activeOpacity={0.7}
             >
-                {user.image ? (
-                    <Image source={{ uri: user.image }} style={styles.avatarImage} />
+                {displayUser.image ? (
+                    <Image source={{ uri: displayUser.image }} style={styles.avatarImage} />
                 ) : (
                     <View
                         style={[styles.avatarPlaceholder, { backgroundColor: colors.tint }]}
@@ -82,8 +85,8 @@ export function UserMenu() {
 
                     {/* User Avatar in Menu */}
                     <View style={styles.menuHeader}>
-                        {user.image ? (
-                            <Image source={{ uri: user.image }} style={styles.menuAvatar} />
+                        {displayUser.image ? (
+                            <Image source={{ uri: displayUser.image }} style={styles.menuAvatar} />
                         ) : (
                             <View
                                 style={[
@@ -94,9 +97,9 @@ export function UserMenu() {
                                 <User size={48} color={colors.background} />
                             </View>
                         )}
-                        {user.name && (
+                        {displayUser.name && (
                             <Text style={[styles.userName, { color: colors.text }]}>
-                                {user.name}
+                                {displayUser.name}
                             </Text>
                         )}
                     </View>
@@ -134,7 +137,7 @@ export function UserMenu() {
                         </Pressable>
                     </View>
 
-                    {/* Logout Button at Bottom */}
+                    {/* Sign Out Button at Bottom */}
                     <View style={styles.logoutContainer}>
                         <Pressable
                             style={({ pressed }) => [
@@ -144,10 +147,10 @@ export function UserMenu() {
                                     borderColor: "#dc2626",
                                 },
                             ]}
-                            onPress={handleLogout}
+                            onPress={handleSignOut}
                         >
                             <LogOut size={24} color="#dc2626" />
-                            <Text style={styles.logoutText}>Logout</Text>
+                            <Text style={styles.logoutText}>Sign Out</Text>
                         </Pressable>
                     </View>
                 </View>
