@@ -16,7 +16,8 @@
     "dotenv": "^17.2.3",
     "drizzle-orm": "^0.45.1",
     "hono": "^4.10.7",
-    "postgres": "^3.4.7"
+    "postgres": "^3.4.7",
+    "resend": "^6.6.0"
   },
   "devDependencies": {
     "@types/node": "^20.11.17",
