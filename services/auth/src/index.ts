@@ -33,6 +33,15 @@ app.on(["POST", "GET"], "/api/auth/**", (c) => {
   return auth.handler(c.req.raw);
 });
 
+// JWKS endpoint for microservices to fetch public keys for JWT validation
+// Services should cache this and refresh periodically
+app.get("/.well-known/jwks.json", async (c) => {
+  const response = await auth.handler(
+    new Request(new URL("/api/auth/jwks", c.req.url).toString())
+  );
+  return response;
+});
+
 const port = process.env.PORT ? parseInt(process.env.PORT) : 4001;
 
 serve(

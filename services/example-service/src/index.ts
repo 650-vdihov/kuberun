@@ -9,7 +9,7 @@ dotenv.config()
 const app = new Hono()
 
 app.use('/*', cors({
-  origin: '*', // Allow all origins (or specify ['http://localhost:8081'] for more security)
+  origin: 'http://localhost:4000',
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization'],
 }))
@@ -31,12 +31,16 @@ app.get('/users', (c) => {
   return c.json(users)
 });
 
-// Protected endpoint - requires auth
+// Protected endpoint - requires JWT from auth service
 app.get('/users/me', authMiddleware(), (c) => {
   const user = getUser(c)
   return c.json({ 
-    message: 'Authenticated user',
-    user 
+    message: 'Authenticated via JWT',
+    user: {
+      id: user.sub,
+      email: user.email,
+      name: user.name,
+    }
   })
 });
 

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Constants from 'expo-constants';
+import { apiClient, AuthError } from '../lib/api-client';
 
 // better-auth User type (matches Drizzle schema)
 interface User {
@@ -67,9 +67,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (new Date(authSession.session.expiresAt) > new Date()) {
           setUser(authSession.user);
           setSession(authSession.session);
+          // Load any cached JWT for faster initial requests
+          await apiClient.loadCachedJwt();
         } else {
           // Session expired, clear storage
           await AsyncStorage.removeItem(AUTH_STORAGE_KEY);
+          await apiClient.clearTokens();
         }
       }
     } catch (error) {
@@ -193,7 +196,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error('Sign out error:', error);
     } finally {
+      // Clear all tokens including JWT cache
       await AsyncStorage.removeItem(AUTH_STORAGE_KEY);
+      await apiClient.clearTokens();
       setUser(null);
       setSession(null);
     }
