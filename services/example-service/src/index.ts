@@ -1,19 +1,28 @@
 import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
+import dotenv from 'dotenv'
+import { authMiddleware, getUser } from './middleware/auth.js'
+
+dotenv.config()
 
 const app = new Hono()
 
 app.use('/*', cors({
-  origin: '*', // Allow all origins (or specify ['http://localhost:8081'] for more security)
+  origin: 'http://localhost:4000',
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Content-Type'],
+  allowHeaders: ['Content-Type', 'Authorization'],
 }))
 
 app.get('/', (c) => {
   return c.text('Hello Hono!')
 })
 
+app.get('/health', (c) => {
+  return c.json({ status: 'ok' }, 200);
+})
+
+// Public endpoint - no auth required
 app.get('/users', (c) => {
   const users = [
     { id: 1, name: 'Alice' },
@@ -22,8 +31,17 @@ app.get('/users', (c) => {
   return c.json(users)
 });
 
-app.get('/health', (c) => {
-  return c.json({ status: 'ok' }, 200);
+// Protected endpoint - requires JWT from auth service
+app.get('/users/me', authMiddleware(), (c) => {
+  const user = getUser(c)
+  return c.json({ 
+    message: 'Authenticated via JWT',
+    user: {
+      id: user.sub,
+      email: user.email,
+      name: user.name,
+    }
+  })
 });
 
 const port = process.env.PORT ? parseInt(process.env.PORT) : 3000

@@ -34,6 +34,21 @@ This is a monorepo managed with pnpm workspaces and Turbo. The structure is orga
    pnpm install
    ```
 
+3. Run local containers
+   ```bash
+   docker-compose up -d
+   ```
+
+4. Init db of services
+   ```bash
+   cd services/{service}
+
+   //In case of schema changes
+   pnpm run db:generate
+   
+   pnpm run db:push
+   ```
+
 ### Running the Application
 
 - **Development mode** (runs all services):
