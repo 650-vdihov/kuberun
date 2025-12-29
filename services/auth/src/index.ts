@@ -14,7 +14,7 @@ app.use("*", logger());
 app.use(
   "*",
   cors({
-    origin: process.env.TRUSTED_ORIGINS?.split(",") || ["http://localhost:3000"],
+    origin: process.env.TRUSTED_ORIGINS?.split(",") || ["http://localhost:4000"],
     credentials: true,
   })
 );
@@ -33,7 +33,7 @@ app.on(["POST", "GET"], "/api/auth/**", (c) => {
   return auth.handler(c.req.raw);
 });
 
-const port = process.env.PORT ? parseInt(process.env.PORT) : 3010;
+const port = process.env.PORT ? parseInt(process.env.PORT) : 4001;
 
 serve(
   {

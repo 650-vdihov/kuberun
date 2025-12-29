@@ -38,7 +38,7 @@ export const auth = betterAuth({
   },
   secret: process.env.BETTER_AUTH_SECRET,
   trustedOrigins: process.env.TRUSTED_ORIGINS?.split(",") || [
-    "http://localhost:3000"
+    "http://localhost:4000"
   ],
   plugins: [bearer()],
 });

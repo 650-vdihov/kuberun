@@ -14,9 +14,9 @@ export const authMiddleware = () => {
     const token = authHeader.substring(7);
 
     try {
-      const authServiceUrl = process.env.AUTH_SERVICE_URL || "http://localhost:3010";
+      const authServiceUrl = process.env.AUTH_SERVICE_URL || "http://localhost:4001";
       
-      const response = await fetch(`${authServiceUrl}/api/auth/get-session`, {
+      const response = await fetch(`${authServiceUrl}/auth/api/auth/get-session`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },

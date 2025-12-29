@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 
 // better-auth User type (matches Drizzle schema)
 interface User {
@@ -44,8 +45,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const AUTH_STORAGE_KEY = '@kuberun_auth_session';
 
-// TODO: Replace with actual better-auth API base URL
-const API_BASE_URL = 'http://localhost:3000/api/auth';
+// API Gateway base URL from environment variable
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL;
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -79,118 +80,123 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signIn = async (email: string, password: string) => {
-    // TODO: Replace with actual better-auth API call
-    // const response = await fetch(`${API_BASE_URL}/sign-in/email`, {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify({ email, password }),
-    // });
-    // const data = await response.json();
-    
-    // Simulating API call delay
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/api/auth/sign-in/email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
 
-    // Mock validation
-    if (!email || !password) {
-      throw new Error('Email and password are required');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `Sign in failed: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      // better-auth returns { token, user }
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days
+      
+      const user: User = {
+        id: data.user.id,
+        email: data.user.email,
+        name: data.user.name,
+        emailVerified: data.user.emailVerified,
+        image: data.user.image,
+        createdAt: new Date(data.user.createdAt),
+        updatedAt: new Date(data.user.updatedAt),
+      };
+
+      const session: Session = {
+        id: data.token,
+        userId: user.id,
+        token: data.token,
+        expiresAt: expiresAt,
+        ipAddress: null,
+        userAgent: null,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      const authSession: AuthSession = { user, session };
+      await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authSession));
+      setUser(user);
+      setSession(session);
+    } catch (error) {
+      console.error('Sign in error:', error);
+      throw error;
     }
-
-    // Mock better-auth response - replace with actual API response
-    const now = new Date();
-    const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days
-    
-    const mockUser: User = {
-      id: 'usr_' + Math.random().toString(36).substring(2, 15),
-      email: email,
-      name: email.split('@')[0],
-      emailVerified: true,
-      image: null,
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    const mockSession: Session = {
-      id: 'ses_' + Math.random().toString(36).substring(2, 15),
-      userId: mockUser.id,
-      token: 'tok_' + Math.random().toString(36).substring(2, 30),
-      expiresAt: expiresAt,
-      ipAddress: null,
-      userAgent: null,
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    const authSession: AuthSession = { user: mockUser, session: mockSession };
-    await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authSession));
-    setUser(mockUser);
-    setSession(mockSession);
   };
 
   const signUp = async (email: string, password: string, name: string) => {
-    // TODO: Replace with actual better-auth API call
-    // const response = await fetch(`${API_BASE_URL}/sign-up/email`, {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify({ email, password, name }),
-    // });
-    // const data = await response.json();
-    
-    // Simulating API call delay
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/api/auth/sign-up/email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, name }),
+      });
 
-    // Mock validation
-    if (!email || !password || !name) {
-      throw new Error('All fields are required');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `Sign up failed: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      // better-auth returns { token, user }
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days
+      
+      const user: User = {
+        id: data.user.id,
+        email: data.user.email,
+        name: data.user.name,
+        emailVerified: data.user.emailVerified,
+        image: data.user.image,
+        createdAt: new Date(data.user.createdAt),
+        updatedAt: new Date(data.user.updatedAt),
+      };
+
+      const session: Session = {
+        id: data.token, // Use token as session id
+        userId: user.id,
+        token: data.token,
+        expiresAt: expiresAt,
+        ipAddress: null,
+        userAgent: null,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      const authSession: AuthSession = { user, session };
+      await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authSession));
+      setUser(user);
+      setSession(session);
+    } catch (error) {
+      console.error('Sign up error:', error);
+      throw error;
     }
-
-    if (password.length < 8) {
-      throw new Error('Password must be at least 8 characters');
-    }
-
-    // Mock better-auth response - replace with actual API response
-    const now = new Date();
-    const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days
-    
-    const mockUser: User = {
-      id: 'usr_' + Math.random().toString(36).substring(2, 15),
-      email: email,
-      name: name,
-      emailVerified: false,
-      image: null,
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    const mockSession: Session = {
-      id: 'ses_' + Math.random().toString(36).substring(2, 15),
-      userId: mockUser.id,
-      token: 'tok_' + Math.random().toString(36).substring(2, 30),
-      expiresAt: expiresAt,
-      ipAddress: null,
-      userAgent: null,
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    const authSession: AuthSession = { user: mockUser, session: mockSession };
-    await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authSession));
-    setUser(mockUser);
-    setSession(mockSession);
   };
 
   const signOut = async () => {
-    // TODO: Replace with actual better-auth API call
-    // await fetch(`${API_BASE_URL}/sign-out`, {
-    //   method: 'POST',
-    //   headers: { 
-    //     'Content-Type': 'application/json',
-    //     'Authorization': `Bearer ${session?.token}`,
-    //   },
-    // });
-    
-    await AsyncStorage.removeItem(AUTH_STORAGE_KEY);
-    setUser(null);
-    setSession(null);
+    try {
+      if (session?.token) {
+        await fetch(`${API_BASE_URL}/auth/api/auth/sign-out`, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.token}`,
+          },
+        });
+      }
+    } catch (error) {
+      console.error('Sign out error:', error);
+    } finally {
+      await AsyncStorage.removeItem(AUTH_STORAGE_KEY);
+      setUser(null);
+      setSession(null);
+    }
   };
 
   return (
