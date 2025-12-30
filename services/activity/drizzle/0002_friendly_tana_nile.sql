@@ -1,0 +1,1 @@
+ALTER TABLE "runs" ADD COLUMN "avg_speed" numeric(5, 2);

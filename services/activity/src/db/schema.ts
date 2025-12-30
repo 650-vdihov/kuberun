@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, decimal, timestamp, integer, text } from "drizzle-orm/pg-core";
+import { pgTable, uuid, varchar, decimal, timestamp, integer, text, real } from "drizzle-orm/pg-core";
 
 export const userProfiles = pgTable("user_profiles", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -15,12 +15,26 @@ export const userProfiles = pgTable("user_profiles", {
 export const runs = pgTable("runs", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: varchar("user_id", { length: 255 }).notNull(),
-  distance: decimal("distance", { precision: 10, scale: 2 }).notNull(), // in meters
-  duration: integer("duration").notNull(), // in seconds
+  status: varchar("status", { length: 20 }).notNull().default("active"), // active, paused, completed
+  distance: decimal("distance", { precision: 10, scale: 2 }), // in meters
+  duration: integer("duration"), // in seconds
   pace: decimal("pace", { precision: 5, scale: 2 }), // min/km
+  avgSpeed: decimal("avg_speed", { precision: 5, scale: 2 }), // km/h
   calories: integer("calories"), // estimated calories burned
   startTime: timestamp("start_time").notNull(),
-  endTime: timestamp("end_time").notNull(),
+  endTime: timestamp("end_time"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const runTrackingPoints = pgTable("run_tracking_points", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  runId: uuid("run_id").notNull().references(() => runs.id, { onDelete: "cascade" }),
+  latitude: real("latitude").notNull(),
+  longitude: real("longitude").notNull(),
+  altitude: real("altitude"), // in meters
+  speed: real("speed"), // in m/s
+  accuracy: real("accuracy"), // in meters
+  timestamp: timestamp("timestamp").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -28,3 +42,5 @@ export type UserProfile = typeof userProfiles.$inferSelect;
 export type NewUserProfile = typeof userProfiles.$inferInsert;
 export type Run = typeof runs.$inferSelect;
 export type NewRun = typeof runs.$inferInsert;
+export type RunTrackingPoint = typeof runTrackingPoints.$inferSelect;
+export type NewRunTrackingPoint = typeof runTrackingPoints.$inferInsert;

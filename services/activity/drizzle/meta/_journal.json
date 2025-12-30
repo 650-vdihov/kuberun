@@ -8,6 +8,20 @@
       "when": 1767104864098,
       "tag": "0000_lucky_silverclaw",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1767109017671,
+      "tag": "0001_slippery_otto_octavius",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1767112565517,
+      "tag": "0002_friendly_tana_nile",
+      "breakpoints": true
     }
   ]
 }
