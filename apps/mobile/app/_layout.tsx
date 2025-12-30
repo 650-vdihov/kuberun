@@ -8,6 +8,7 @@ import 'react-native-reanimated';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AuthProvider, useAuth } from '@/contexts/auth-context';
 import { ClubsProvider } from '@/contexts/clubs-context';
+import { UserProfileProvider } from '@/contexts/user-profile-context';
 import { Colors } from '@/constants/theme';
 
 export const unstable_settings = {
@@ -62,9 +63,11 @@ function RootLayoutNav() {
 export default function RootLayout() {
   return (
     <AuthProvider>
-      <ClubsProvider>
-        <RootLayoutNav />
-      </ClubsProvider>
+      <UserProfileProvider>
+        <ClubsProvider>
+          <RootLayoutNav />
+        </ClubsProvider>
+      </UserProfileProvider>
     </AuthProvider>
   );
 }

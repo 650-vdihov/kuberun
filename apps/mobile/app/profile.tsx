@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,40 +8,59 @@ import {
   TextInput,
   Image,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronLeft, Camera, User } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useAuth } from '@/contexts/auth-context';
+import { useUserProfile, type Gender } from '@/contexts/user-profile-context';
 
-type Gender = 'male' | 'female' | 'other';
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL;
 
 interface ProfileData {
   name: string;
   image?: string;
   height: string; // in cm
   weight: string; // in kg
-  gender: Gender;
+  gender?: Gender;
 }
 
 export default function ProfileScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const router = useRouter();
+  const { user } = useAuth();
+  const { profile: userProfile, isLoading, updateProfile } = useUserProfile();
 
-  // TODO: Load from actual user state/API
   const [profile, setProfile] = useState<ProfileData>({
-    name: 'John Doe',
-    image: 'https://i.pravatar.cc/150?img=1',
-    height: '180',
-    weight: '75',
-    gender: 'male',
+    name: user?.name || '',
+    image: undefined,
+    height: '',
+    weight: '',
+    gender: undefined,
   });
 
   const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Load profile data from context when it's available
+  useEffect(() => {
+    if (userProfile) {
+      setProfile({
+        name: userProfile.name || user?.name || '',
+        image: userProfile.image || undefined,
+        height: userProfile.height || '',
+        weight: userProfile.weight || '',
+        gender: userProfile.gender || undefined,
+      });
+    }
+  }, [userProfile, user]);
 
   const handlePickImage = async () => {
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -59,20 +78,67 @@ export default function ProfileScreen() {
     });
 
     if (!result.canceled && result.assets[0]) {
-      setProfile((prev) => ({ ...prev, image: result.assets[0].uri }));
+      try {
+        // Resize and compress image to 256x256
+        const manipulatedImage = await ImageManipulator.manipulateAsync(
+          result.assets[0].uri,
+          [{ resize: { width: 256, height: 256 } }],
+          { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+        );
+
+        // Convert to base64 data URI
+        const base64Image = `data:image/jpeg;base64,${manipulatedImage.base64}`;
+        setProfile((prev) => ({ ...prev, image: base64Image }));
+      } catch (error) {
+        console.error('Failed to process image:', error);
+        Alert.alert('Error', 'Failed to process image. Please try another one.');
+      }
     }
   };
 
-  const handleSave = () => {
-    // TODO: Save to API/state
-    setIsEditing(false);
-    Alert.alert('Success', 'Profile updated successfully!');
+  const handleSave = async () => {
+    try {
+      setIsSaving(true);
+      
+      // Validate inputs
+      if (!profile.name.trim()) {
+        Alert.alert('Validation Error', 'Please enter your name');
+        return;
+      }
+      
+      if (profile.height && (isNaN(Number(profile.height)) || Number(profile.height) <= 0)) {
+        Alert.alert('Validation Error', 'Please enter a valid height');
+        return;
+      }
+      
+      if (profile.weight && (isNaN(Number(profile.weight)) || Number(profile.weight) <= 0)) {
+        Alert.alert('Validation Error', 'Please enter a valid weight');
+        return;
+      }
+
+      const payload = {
+        name: profile.name,
+        gender: profile.gender,
+        height: profile.height ? profile.height : undefined,
+        weight: profile.weight ? profile.weight : undefined,
+        image: profile.image || undefined,
+      };
+
+      await updateProfile(payload);
+      
+      setIsEditing(false);
+      Alert.alert('Success', 'Profile updated successfully!');
+    } catch (error) {
+      console.error('Failed to save profile:', error);
+      Alert.alert('Error', 'Failed to save profile. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const genderOptions: { value: Gender; label: string }[] = [
     { value: 'male', label: 'Male' },
     { value: 'female', label: 'Female' },
-    { value: 'other', label: 'Other' },
   ];
 
   return (
@@ -85,14 +151,22 @@ export default function ProfileScreen() {
           <ChevronLeft size={28} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Profile</Text>
-        <TouchableOpacity onPress={isEditing ? handleSave : () => setIsEditing(true)}>
-          <Text style={[styles.editButton, { color: colors.tint }]}>
-            {isEditing ? 'Save' : 'Edit'}
+        <TouchableOpacity 
+          onPress={isEditing ? handleSave : () => setIsEditing(true)}
+          disabled={isSaving}
+        >
+          <Text style={[styles.editButton, { color: colors.tint, opacity: isSaving ? 0.5 : 1 }]}>
+            {isSaving ? 'Saving...' : isEditing ? 'Save' : 'Edit'}
           </Text>
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.tint} />
+        </View>
+      ) : (
+        <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
         {/* Profile Image */}
         <View style={styles.imageSection}>
           <TouchableOpacity onPress={isEditing ? handlePickImage : undefined} activeOpacity={isEditing ? 0.7 : 1}>
@@ -130,7 +204,9 @@ export default function ProfileScreen() {
                 placeholderTextColor={colors.icon}
               />
             ) : (
-              <Text style={[styles.fieldValue, { color: colors.text }]}>{profile.name}</Text>
+              <Text style={[styles.fieldValue, { color: profile.name ? colors.text : colors.icon }]}>
+                {profile.name || 'Not set'}
+              </Text>
             )}
           </View>
 
@@ -163,8 +239,8 @@ export default function ProfileScreen() {
                 ))}
               </View>
             ) : (
-              <Text style={[styles.fieldValue, { color: colors.text }]}>
-                {genderOptions.find((g) => g.value === profile.gender)?.label}
+              <Text style={[styles.fieldValue, { color: profile.gender ? colors.text : colors.icon }]}>
+                {profile.gender ? genderOptions.find((g) => g.value === profile.gender)?.label : 'Not set'}
               </Text>
             )}
           </View>
@@ -186,7 +262,9 @@ export default function ProfileScreen() {
                 <Text style={[styles.unitText, { color: colors.icon }]}>cm</Text>
               </View>
             ) : (
-              <Text style={[styles.fieldValue, { color: colors.text }]}>{profile.height} cm</Text>
+              <Text style={[styles.fieldValue, { color: profile.height ? colors.text : colors.icon }]}>
+                {profile.height ? `${profile.height} cm` : 'Not set'}
+              </Text>
             )}
           </View>
 
@@ -207,7 +285,9 @@ export default function ProfileScreen() {
                 <Text style={[styles.unitText, { color: colors.icon }]}>kg</Text>
               </View>
             ) : (
-              <Text style={[styles.fieldValue, { color: colors.text }]}>{profile.weight} kg</Text>
+              <Text style={[styles.fieldValue, { color: profile.weight ? colors.text : colors.icon }]}>
+                {profile.weight ? `${profile.weight} kg` : 'Not set'}
+              </Text>
             )}
           </View>
         </View>
@@ -217,6 +297,7 @@ export default function ProfileScreen() {
           Your height, weight, and gender are used to calculate accurate calorie burn estimates during activities.
         </Text>
       </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
@@ -224,6 +305,11 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   header: {
     flexDirection: 'row',
