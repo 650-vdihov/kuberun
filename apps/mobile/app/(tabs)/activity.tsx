@@ -44,6 +44,10 @@ export default function ActivityScreen() {
   const pausedElapsedRef = useRef<number>(0); // Store elapsed time when paused
   const locationSubscription = useRef<Location.LocationSubscription | null>(null);
   const trackingInterval = useRef<any>(null);
+  const currentRunIdRef = useRef<string | null>(null); // Ref to track run ID in callbacks
+  const sendTrackingPointRef = useRef<((location: Location.LocationObject) => Promise<void>) | null>(null);
+  const prevLocationRef = useRef<{ latitude: number; longitude: number } | null>(null); // Previous location for distance calc
+  const totalDistanceRef = useRef<number>(0); // Accumulated distance in meters
 
   // Request location permissions
   useEffect(() => {
@@ -73,6 +77,7 @@ export default function ActivityScreen() {
       
       if (response) {
         setCurrentRunId(response.id);
+        currentRunIdRef.current = response.id; // Set ref for callbacks
         setActivityState(response.status as ActivityState);
         
         // Calculate elapsed time from start time
@@ -134,11 +139,63 @@ export default function ActivityScreen() {
     }
   };
 
+  // Calculate distance between two GPS points using Haversine formula (returns meters)
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371e3; // Earth's radius in meters
+    const φ1 = (lat1 * Math.PI) / 180;
+    const φ2 = (lat2 * Math.PI) / 180;
+    const Δφ = ((lat2 - lat1) * Math.PI) / 180;
+    const Δλ = ((lon2 - lon1) * Math.PI) / 180;
+
+    const a =
+      Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+      Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c;
+  };
+
   // Send tracking point to server
   const sendTrackingPoint = async (location: Location.LocationObject) => {
-    if (!currentRunId) return;
+    const runId = currentRunIdRef.current;
+    if (!runId) {
+      console.log('sendTrackingPoint: No runId available');
+      return;
+    }
 
     try {
+      const { latitude, longitude } = location.coords;
+
+      // Calculate distance from previous point
+      if (prevLocationRef.current) {
+        const segmentDistance = calculateDistance(
+          prevLocationRef.current.latitude,
+          prevLocationRef.current.longitude,
+          latitude,
+          longitude
+        );
+        
+        // Only add distance if it's reasonable (filter out GPS jitter)
+        if (segmentDistance < 100) { // Max 100m between 5-second intervals (~72 km/h max)
+          totalDistanceRef.current += segmentDistance;
+        }
+      }
+
+      // Update previous location
+      prevLocationRef.current = { latitude, longitude };
+
+      // Calculate average speed (m/s)
+      const elapsedSeconds = Math.floor((Date.now() - startTimeRef.current) / 1000);
+      const avgSpeed = elapsedSeconds > 0 ? totalDistanceRef.current / elapsedSeconds : 0;
+
+      // Update UI stats
+      setStats(prev => ({
+        ...prev,
+        distance: totalDistanceRef.current,
+        currentSpeed: location.coords.speed || 0,
+        averageSpeed: avgSpeed,
+      }));
+
       const trackingData = {
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
@@ -148,34 +205,44 @@ export default function ActivityScreen() {
         timestamp: new Date(location.timestamp).toISOString(),
       };
 
-      await apiClient.post(`${API_BASE_URL}/activity/runs/${currentRunId}/track`, trackingData);
-
-      // Update current speed in UI
-      setStats(prev => ({
-        ...prev,
-        currentSpeed: location.coords.speed || 0,
-      }));
+      console.log('Sending tracking point:', trackingData, 'Total distance:', totalDistanceRef.current);
+      await apiClient.post(`${API_BASE_URL}/activity/runs/${runId}/track`, trackingData);
     } catch (error) {
       console.error('Failed to send tracking point:', error);
     }
   };
 
+  // Keep sendTrackingPointRef updated with latest function
+  sendTrackingPointRef.current = sendTrackingPoint;
+
   // Start location tracking
   const startLocationTracking = async () => {
-    if (!hasLocationPermission || locationSubscription.current) return;
+    if (!hasLocationPermission) return;
+    
+    // Stop any existing tracking first
+    stopLocationTracking();
 
     try {
-      // Watch location with high accuracy
-      locationSubscription.current = await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.BestForNavigation,
-          timeInterval: 5000, // Update every 5 seconds
-          distanceInterval: 10, // Or every 10 meters
-        },
-        (location: Location.LocationObject) => {
-          sendTrackingPoint(location);
+      // Use interval-based polling for reliable tracking
+      // This ensures we get points even when stationary or on emulator
+      trackingInterval.current = setInterval(async () => {
+        try {
+          const location = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.BestForNavigation,
+          });
+          console.log('Got location update:', location.coords);
+          sendTrackingPointRef.current?.(location);
+        } catch (error) {
+          console.error('Failed to get current position:', error);
         }
-      );
+      }, 5000); // Send every 5 seconds
+
+      // Also get initial position immediately
+      const initialLocation = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.BestForNavigation,
+      });
+      console.log('Got initial location:', initialLocation.coords);
+      sendTrackingPointRef.current?.(initialLocation);
     } catch (error) {
       console.error('Failed to start location tracking:', error);
       Alert.alert('Error', 'Failed to start GPS tracking');
@@ -184,6 +251,10 @@ export default function ActivityScreen() {
 
   // Stop location tracking
   const stopLocationTracking = () => {
+    if (trackingInterval.current) {
+      clearInterval(trackingInterval.current);
+      trackingInterval.current = null;
+    }
     if (locationSubscription.current) {
       try {
         locationSubscription.current.remove();
@@ -205,10 +276,14 @@ export default function ActivityScreen() {
       // Start run on server
       const response = await apiClient.post<any>(`${API_BASE_URL}/activity/runs/start`, {});
       
-      setCurrentRunId(response.id);
+      const runId = response.id;
+      setCurrentRunId(runId);
+      currentRunIdRef.current = runId; // Set ref immediately for callbacks
       setActivityState('active');
       startTimeRef.current = Date.now();
       pausedElapsedRef.current = 0; // Reset paused elapsed time
+      prevLocationRef.current = null; // Reset previous location
+      totalDistanceRef.current = 0; // Reset distance
       
       // Start timer
       startTimer();
@@ -244,6 +319,7 @@ export default function ActivityScreen() {
     try {
       await apiClient.post(`${API_BASE_URL}/activity/runs/${currentRunId}/resume`, {});
       
+      currentRunIdRef.current = currentRunId; // Ensure ref is set for callbacks
       setActivityState('active');
       startTimer();
       await startLocationTracking();
@@ -280,6 +356,9 @@ export default function ActivityScreen() {
       // Always reset local state
       setActivityState('idle');
       setCurrentRunId(null);
+      currentRunIdRef.current = null; // Clear ref
+      prevLocationRef.current = null; // Clear previous location
+      totalDistanceRef.current = 0; // Clear distance
       setStats({
         elapsedTime: 0,
         distance: 0,
@@ -317,6 +396,9 @@ export default function ActivityScreen() {
       // Reset state
       setActivityState('idle');
       setCurrentRunId(null);
+      currentRunIdRef.current = null; // Clear ref
+      prevLocationRef.current = null; // Clear previous location
+      totalDistanceRef.current = 0; // Clear distance
       setStats({
         elapsedTime: 0,
         distance: 0,
