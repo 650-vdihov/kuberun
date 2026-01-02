@@ -4,6 +4,8 @@ import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import dotenv from "dotenv";
 import { auth } from "./auth.js";
+import { db } from "./db/index.js";
+import { sql } from "drizzle-orm";
 
 dotenv.config();
 
@@ -14,7 +16,9 @@ app.use("*", logger());
 app.use(
   "*",
   cors({
-    origin: process.env.TRUSTED_ORIGINS?.split(",") || ["http://localhost:4000"],
+    origin: process.env.TRUSTED_ORIGINS?.split(",") || [
+      "http://localhost:4000",
+    ],
     credentials: true,
   })
 );
@@ -26,6 +30,32 @@ app.get("/", (c) => {
 
 app.get("/health", (c) => {
   return c.json({ status: "healthy" });
+});
+
+// Readiness check - verify dependencies are ready
+app.get("/ready", async (c) => {
+  const checks: { name: string; status: "ok" | "error"; error?: string }[] = [];
+
+  // Check database connectivity with timeout
+  try {
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Database timeout")), 3000)
+    );
+    const dbPromise = db.execute(sql`SELECT 1`);
+
+    await Promise.race([dbPromise, timeoutPromise]);
+    checks.push({ name: "database", status: "ok" });
+  } catch (err) {
+    checks.push({
+      name: "database",
+      status: "error",
+      error: err instanceof Error ? err.message : "Unknown error",
+    });
+  }
+
+  const allHealthy = checks.every((check) => check.status === "ok");
+
+  return c.json({ ready: allHealthy, checks }, allHealthy ? 200 : 503);
 });
 
 // Mount better-auth handler on /api/auth/*

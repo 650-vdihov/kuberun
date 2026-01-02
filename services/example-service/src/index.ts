@@ -3,7 +3,10 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import dotenv from "dotenv";
 import { authMiddleware, getUser } from "./middleware/auth.js";
-import { startConsuming } from "./rabbitmq.js";
+import {
+  startConsuming,
+  isConnected as isRabbitMQConnected,
+} from "./rabbitmq.js";
 
 dotenv.config();
 
@@ -24,6 +27,22 @@ app.get("/", (c) => {
 
 app.get("/health", (c) => {
   return c.json({ status: "ok" }, 200);
+});
+
+// Readiness check - verify dependencies are ready
+app.get("/ready", (c) => {
+  const checks: { name: string; status: "ok" | "error"; error?: string }[] = [];
+
+  // Check RabbitMQ connectivity
+  if (isRabbitMQConnected()) {
+    checks.push({ name: "rabbitmq", status: "ok" });
+  } else {
+    checks.push({ name: "rabbitmq", status: "error", error: "Not connected" });
+  }
+
+  const allHealthy = checks.every((check) => check.status === "ok");
+
+  return c.json({ ready: allHealthy, checks }, allHealthy ? 200 : 503);
 });
 
 // Public endpoint - no auth required
@@ -50,15 +69,16 @@ app.get("/users/me", authMiddleware(), (c) => {
 
 const port = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 
-// Start RabbitMQ consumer and then start server
-startConsuming().then(() => {
-  serve(
-    {
-      fetch: app.fetch,
-      port,
-    },
-    (info) => {
-      console.log(`Server is running on http://localhost:${info.port}`);
-    }
-  );
-});
+// Start RabbitMQ consumer in background (non-blocking)
+startConsuming();
+
+// Start server immediately
+serve(
+  {
+    fetch: app.fetch,
+    port,
+  },
+  (info) => {
+    console.log(`Server is running on http://localhost:${info.port}`);
+  }
+);

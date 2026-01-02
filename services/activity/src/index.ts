@@ -7,7 +7,11 @@ import { authMiddleware, getUser } from "./middleware/auth.js";
 import { db } from "./db/index.js";
 import { userProfiles, runs, runTrackingPoints } from "./db/schema.js";
 import { eq, desc, and, sql, gte, lte, count } from "drizzle-orm";
-import { initRabbitMQ, publishRunCompleted } from "./rabbitmq.js";
+import {
+  initRabbitMQ,
+  publishRunCompleted,
+  isConnected as isRabbitMQConnected,
+} from "./rabbitmq.js";
 
 dotenv.config();
 
@@ -31,6 +35,39 @@ app.get("/", (c) => {
 
 app.get("/health", (c) => {
   return c.json({ status: "ok", service: "activity" }, 200);
+});
+
+// Readiness check - verify dependencies are ready
+app.get("/ready", async (c) => {
+  const checks: { name: string; status: "ok" | "error"; error?: string }[] = [];
+
+  // Check database connectivity with timeout
+  try {
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Database timeout")), 3000)
+    );
+    const dbPromise = db.execute(sql`SELECT 1`);
+
+    await Promise.race([dbPromise, timeoutPromise]);
+    checks.push({ name: "database", status: "ok" });
+  } catch (err) {
+    checks.push({
+      name: "database",
+      status: "error",
+      error: err instanceof Error ? err.message : "Unknown error",
+    });
+  }
+
+  // Check RabbitMQ connectivity
+  if (isRabbitMQConnected()) {
+    checks.push({ name: "rabbitmq", status: "ok" });
+  } else {
+    checks.push({ name: "rabbitmq", status: "error", error: "Not connected" });
+  }
+
+  const allHealthy = checks.every((check) => check.status === "ok");
+
+  return c.json({ ready: allHealthy, checks }, allHealthy ? 200 : 503);
 });
 
 // User Profile endpoints
@@ -667,17 +704,16 @@ app.get("/dashboard/featured", authMiddleware(), async (c) => {
 
 const port = process.env.PORT ? parseInt(process.env.PORT) : 4002;
 
-// Initialize RabbitMQ and start server
-initRabbitMQ().then(() => {
-  serve(
-    {
-      fetch: app.fetch,
-      port,
-    },
-    (info) => {
-      console.log(
-        `Activity service is running on http://localhost:${info.port}`
-      );
-    }
-  );
-});
+// Initialize RabbitMQ in background (non-blocking)
+initRabbitMQ();
+
+// Start server immediately
+serve(
+  {
+    fetch: app.fetch,
+    port,
+  },
+  (info) => {
+    console.log(`Activity service is running on http://localhost:${info.port}`);
+  }
+);
