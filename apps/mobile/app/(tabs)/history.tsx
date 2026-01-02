@@ -1,55 +1,35 @@
 import { StyleSheet, View, TouchableOpacity, FlatList, ActivityIndicator, Modal, TextInput } from 'react-native';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { Calendar, Clock, MapPin, TrendingUp, X, Filter } from 'lucide-react-native';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useApiClient } from '@/hooks/use-api-client';
+
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL;
 
 type TimeframeFilter = 'all' | 'today' | 'week' | 'month' | 'year' | 'custom';
 
 interface RunHistory {
   id: string;
-  date: Date;
+  startTime: string;
+  endTime: string | null;
   duration: number; // in seconds
-  distance: number; // in meters
-  averageSpeed: number; // in m/s
-  calories: number;
-  route: string;
+  distance: string; // in meters (stored as string in DB)
+  pace: string | null;
+  avgSpeed: string | null; // km/h
+  calories: number | null;
+  status: string;
 }
 
-// Generate dummy data (in production, fetch from API/storage)
-const generateDummyRuns = (count: number, startDate: Date = new Date()): RunHistory[] => {
-  const runs: RunHistory[] = [];
-  const routes = ['City Park Loop', 'River Trail', 'Mountain Path', 'Beach Run', 'Downtown Circuit', 'Forest Trail', 'Lake Perimeter', 'Hill Climb Route'];
-  
-  for (let i = 0; i < count; i++) {
-    const daysAgo = Math.floor(i / 2); // 2 runs per day on average
-    const date = new Date(startDate);
-    date.setDate(date.getDate() - daysAgo);
-    date.setHours(Math.floor(Math.random() * 12) + 6); // 6 AM - 6 PM
-    date.setMinutes(Math.floor(Math.random() * 60));
-    
-    const duration = Math.floor(Math.random() * 3600) + 900; // 15-75 minutes
-    const distance = Math.floor(Math.random() * 15000) + 2000; // 2-17 km
-    const averageSpeed = distance / duration;
-    
-    runs.push({
-      id: `run-${i}`,
-      date,
-      duration,
-      distance,
-      averageSpeed,
-      calories: Math.floor((duration / 60) * 10 + Math.random() * 100),
-      route: routes[Math.floor(Math.random() * routes.length)],
-    });
-  }
-  
-  // Sort by date, newest first
-  return runs.sort((a, b) => b.date.getTime() - a.date.getTime());
-};
-
-const ALL_RUNS = generateDummyRuns(100); // Generate 100 dummy runs
+interface PaginationInfo {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasMore: boolean;
+}
 
 export default function HistoryScreen() {
   const colorScheme = useColorScheme();
@@ -60,16 +40,67 @@ export default function HistoryScreen() {
   const cardBackground = isDark ? '#1c1f22' : '#ffffff';
   const borderColor = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(15, 23, 42, 0.08)';
   const inputBackground = isDark ? '#1f2428' : '#f5f7f9';
+
+  const apiClient = useApiClient();
   
   const [timeframeFilter, setTimeframeFilter] = useState<TimeframeFilter>('all');
-  const [displayedRuns, setDisplayedRuns] = useState<RunHistory[]>(ALL_RUNS.slice(0, 20));
+  const [displayedRuns, setDisplayedRuns] = useState<RunHistory[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [pagination, setPagination] = useState<PaginationInfo | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
   const [showCustomModal, setShowCustomModal] = useState(false);
-  const [customFromDate, setCustomFromDate] = useState<Date | null>(null);
-  const [customToDate, setCustomToDate] = useState<Date | null>(null);
+  const [customFromDate, setCustomFromDate] = useState<string>('');
+  const [customToDate, setCustomToDate] = useState<string>('');
   const [fromDateInput, setFromDateInput] = useState('');
   const [toDateInput, setToDateInput] = useState('');
+
+  // Fetch runs from API
+  const fetchRuns = useCallback(async (page: number = 1, append: boolean = false) => {
+    if (append) {
+      setIsLoading(true);
+    } else {
+      setIsInitialLoading(true);
+    }
+
+    try {
+      const params = new URLSearchParams();
+      params.append('page', page.toString());
+      params.append('limit', '20');
+
+      if (timeframeFilter !== 'all' && timeframeFilter !== 'custom') {
+        params.append('timeframe', timeframeFilter);
+      } else if (timeframeFilter === 'custom') {
+        if (customFromDate) params.append('from', customFromDate);
+        if (customToDate) params.append('to', customToDate);
+      }
+
+      const response = await apiClient.get<{
+        runs: RunHistory[];
+        pagination: PaginationInfo;
+      }>(`${API_BASE_URL}/activity/runs?${params.toString()}`);
+
+      if (response) {
+        if (append) {
+          setDisplayedRuns(prev => [...prev, ...response.runs]);
+        } else {
+          setDisplayedRuns(response.runs);
+        }
+        setPagination(response.pagination);
+        setCurrentPage(page);
+      }
+    } catch (error) {
+      console.error('Failed to fetch runs:', error);
+    } finally {
+      setIsLoading(false);
+      setIsInitialLoading(false);
+    }
+  }, [apiClient, timeframeFilter, customFromDate, customToDate]);
+
+  // Initial fetch and refetch when filter changes
+  useEffect(() => {
+    fetchRuns(1, false);
+  }, [timeframeFilter, customFromDate, customToDate]);
 
   // Format time as HH:MM:SS or MM:SS
   const formatDuration = (seconds: number): string => {
@@ -84,17 +115,24 @@ export default function HistoryScreen() {
   };
 
   // Format distance
-  const formatDistance = (meters: number): string => {
-    return (meters / 1000).toFixed(2);
+  const formatDistance = (meters: string | number): string => {
+    const m = typeof meters === 'string' ? parseFloat(meters) : meters;
+    return (m / 1000).toFixed(2);
   };
 
-  // Format speed
-  const formatSpeed = (metersPerSecond: number): string => {
-    return ((metersPerSecond * 3600) / 1000).toFixed(1);
+  // Format pace (min/km)
+  const formatPace = (pace: string | null): string => {
+    if (!pace) return '--';
+    const paceNum = parseFloat(pace);
+    if (paceNum === 0 || !isFinite(paceNum)) return '--';
+    const mins = Math.floor(paceNum);
+    const secs = Math.round((paceNum - mins) * 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   // Format date
-  const formatDate = (date: Date): string => {
+  const formatDate = (dateStr: string): string => {
+    const date = new Date(dateStr);
     const now = new Date();
     const diff = now.getTime() - date.getTime();
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
@@ -106,58 +144,45 @@ export default function HistoryScreen() {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
-  const formatTime = (date: Date): string => {
+  const formatTime = (dateStr: string): string => {
+    const date = new Date(dateStr);
     return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
   };
 
-  // Filter runs based on timeframe
-  const getFilteredRuns = useCallback((filter: TimeframeFilter, fromDate?: Date | null, toDate?: Date | null): RunHistory[] => {
-    const now = new Date();
+  // Generate run title based on time of day and average speed
+  const getRunTitle = (startTime: string, avgSpeed: string | null): string => {
+    const date = new Date(startTime);
+    const hour = date.getHours();
     
-    switch (filter) {
-      case 'today':
-        return ALL_RUNS.filter(run => {
-          const runDate = new Date(run.date);
-          return runDate.toDateString() === now.toDateString();
-        });
-      case 'week':
-        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        return ALL_RUNS.filter(run => run.date >= weekAgo);
-      case 'month':
-        const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        return ALL_RUNS.filter(run => run.date >= monthAgo);
-      case 'year':
-        const yearAgo = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
-        return ALL_RUNS.filter(run => run.date >= yearAgo);
-      case 'custom':
-        return ALL_RUNS.filter(run => {
-          const runDate = new Date(run.date);
-          const from = fromDate ? new Date(fromDate) : null;
-          const to = toDate ? new Date(toDate) : null;
-          
-          // Set time to start of day for 'from' and end of day for 'to'
-          if (from) {
-            from.setHours(0, 0, 0, 0);
-          }
-          if (to) {
-            to.setHours(23, 59, 59, 999);
-          }
-          
-          // Check if run is within the date range
-          if (from && to) {
-            return runDate >= from && runDate <= to;
-          } else if (from) {
-            return runDate >= from;
-          } else if (to) {
-            return runDate <= to;
-          }
-          
-          return true; // Both empty means show all
-        });
-      default:
-        return ALL_RUNS;
+    // Determine time of day
+    let timeOfDay: string;
+    if (hour >= 5 && hour < 12) {
+      timeOfDay = 'Morning';
+    } else if (hour >= 12 && hour < 17) {
+      timeOfDay = 'Afternoon';
+    } else if (hour >= 17 && hour < 21) {
+      timeOfDay = 'Evening';
+    } else {
+      timeOfDay = 'Night';
     }
-  }, []);
+    
+    // Determine activity type based on avg speed (km/h)
+    const speed = avgSpeed ? parseFloat(avgSpeed) : 0;
+    let activityType: string;
+    if (speed >= 12) {
+      activityType = 'Run';
+    } else if (speed >= 9) {
+      activityType = 'Jog';
+    } else if (speed >= 6) {
+      activityType = 'Brisk Walk';
+    } else if (speed >= 3) {
+      activityType = 'Walk';
+    } else {
+      activityType = 'Stroll';
+    }
+    
+    return `${timeOfDay} ${activityType}`;
+  };
 
   // Handle filter change
   const handleFilterChange = (filter: TimeframeFilter) => {
@@ -167,42 +192,35 @@ export default function HistoryScreen() {
     }
     
     setTimeframeFilter(filter);
-    const filtered = getFilteredRuns(filter);
-    setDisplayedRuns(filtered.slice(0, 20));
-    setHasMore(filtered.length > 20);
+    setCustomFromDate('');
+    setCustomToDate('');
   };
 
-  // Parse date from string input (supports multiple formats)
-  const parseDate = (dateStr: string): Date | null => {
+  // Parse date from string input
+  const parseDate = (dateStr: string): string | null => {
     if (!dateStr.trim()) return null;
     
     // Try parsing YYYY-MM-DD format
     const isoMatch = dateStr.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
     if (isoMatch) {
-      const [, year, month, day] = isoMatch;
-      const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-      return isNaN(date.getTime()) ? null : date;
+      return dateStr;
     }
     
     // Try parsing MM/DD/YYYY format
     const usMatch = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
     if (usMatch) {
       const [, month, day, year] = usMatch;
-      const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-      return isNaN(date.getTime()) ? null : date;
+      return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
     }
     
     // Try parsing DD.MM.YYYY format
     const euMatch = dateStr.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
     if (euMatch) {
       const [, day, month, year] = euMatch;
-      const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-      return isNaN(date.getTime()) ? null : date;
+      return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
     }
     
-    // Fallback to Date constructor
-    const date = new Date(dateStr);
-    return isNaN(date.getTime()) ? null : date;
+    return null;
   };
 
   // Apply custom date filter
@@ -210,34 +228,26 @@ export default function HistoryScreen() {
     const fromDate = parseDate(fromDateInput);
     const toDate = parseDate(toDateInput);
     
-    // If both fields are empty, switch to "All time"
     if (!fromDate && !toDate) {
       setTimeframeFilter('all');
-      const filtered = getFilteredRuns('all');
-      setDisplayedRuns(filtered.slice(0, 20));
-      setHasMore(filtered.length > 20);
-      setShowCustomModal(false);
-      return;
+      setCustomFromDate('');
+      setCustomToDate('');
+    } else {
+      setTimeframeFilter('custom');
+      setCustomFromDate(fromDate || '');
+      setCustomToDate(toDate || '');
     }
     
-    setCustomFromDate(fromDate);
-    setCustomToDate(toDate);
-    setTimeframeFilter('custom');
-    const filtered = getFilteredRuns('custom', fromDate, toDate);
-    setDisplayedRuns(filtered.slice(0, 20));
-    setHasMore(filtered.length > 20);
     setShowCustomModal(false);
   };
 
   // Clear custom filter
   const clearCustomFilter = () => {
-    setCustomFromDate(null);
-    setCustomToDate(null);
     setFromDateInput('');
     setToDateInput('');
   };
 
-  // Set quick date (today or a relative date)
+  // Set quick date
   const setQuickDate = (field: 'from' | 'to', daysAgo: number = 0) => {
     const date = new Date();
     date.setDate(date.getDate() - daysAgo);
@@ -251,28 +261,8 @@ export default function HistoryScreen() {
 
   // Load more runs (infinite scroll)
   const loadMoreRuns = () => {
-    if (isLoading || !hasMore) return;
-    
-    setIsLoading(true);
-    
-    // Simulate network delay
-    setTimeout(() => {
-      const filtered = getFilteredRuns(
-        timeframeFilter, 
-        timeframeFilter === 'custom' ? customFromDate : undefined,
-        timeframeFilter === 'custom' ? customToDate : undefined
-      );
-      const currentLength = displayedRuns.length;
-      const nextBatch = filtered.slice(currentLength, currentLength + 20);
-      
-      if (nextBatch.length === 0) {
-        setHasMore(false);
-      } else {
-        setDisplayedRuns([...displayedRuns, ...nextBatch]);
-      }
-      
-      setIsLoading(false);
-    }, 500);
+    if (isLoading || !pagination?.hasMore) return;
+    fetchRuns(currentPage + 1, true);
   };
 
   const renderRunItem = ({ item }: { item: RunHistory }) => (
@@ -294,10 +284,10 @@ export default function HistoryScreen() {
         <View style={styles.dateContainer}>
           <Calendar size={16} color={colors.icon} />
           <ThemedText style={[styles.dateText, { color: colors.text }]}>
-            {formatDate(item.date)}
+            {formatDate(item.startTime)}
           </ThemedText>
           <ThemedText style={[styles.timeText, { color: colors.icon }]}>
-            {formatTime(item.date)}
+            {formatTime(item.startTime)}
           </ThemedText>
         </View>
       </View>
@@ -319,7 +309,7 @@ export default function HistoryScreen() {
           <Clock size={18} color={accent} />
           <View style={styles.statContent}>
             <ThemedText style={[styles.statValue, { color: colors.text }]}>
-              {formatDuration(item.duration)}
+              {formatDuration(item.duration || 0)}
             </ThemedText>
             <ThemedText style={[styles.statLabel, { color: colors.icon }]}>
               Duration
@@ -331,10 +321,10 @@ export default function HistoryScreen() {
           <TrendingUp size={18} color={accent} />
           <View style={styles.statContent}>
             <ThemedText style={[styles.statValue, { color: colors.text }]}>
-              {formatSpeed(item.averageSpeed)} km/h
+              {formatPace(item.pace)} /km
             </ThemedText>
             <ThemedText style={[styles.statLabel, { color: colors.icon }]}>
-              Avg Speed
+              Pace
             </ThemedText>
           </View>
         </View>
@@ -342,11 +332,13 @@ export default function HistoryScreen() {
       
       <View style={[styles.runFooter, { borderTopColor: borderColor }]}>
         <ThemedText style={[styles.routeName, { color: colors.text }]}>
-          {item.route}
+          {getRunTitle(item.startTime, item.avgSpeed)}
         </ThemedText>
-        <ThemedText style={[styles.calories, { color: accent }]}>
-          {item.calories} cal
-        </ThemedText>
+        {item.calories != null && (
+          <ThemedText style={[styles.calories, { color: accent }]}>
+            {item.calories} cal
+          </ThemedText>
+        )}
       </View>
     </TouchableOpacity>
   );
@@ -360,13 +352,19 @@ export default function HistoryScreen() {
     );
   };
 
-  const renderEmpty = () => (
-    <View style={styles.emptyContainer}>
-      <ThemedText style={[styles.emptyText, { color: colors.icon }]}>
-        No runs found for this timeframe
-      </ThemedText>
-    </View>
-  );
+  const renderEmpty = () => {
+    if (isInitialLoading) return null;
+    return (
+      <View style={styles.emptyContainer}>
+        <ThemedText style={[styles.emptyText, { color: colors.icon }]}>
+          No runs found for this timeframe
+        </ThemedText>
+        <ThemedText style={[styles.emptySubtext, { color: colors.icon }]}>
+          Start a run in the Activity tab!
+        </ThemedText>
+      </View>
+    );
+  };
 
   const getFilterButtonStyle = (filter: TimeframeFilter) => ([
     styles.filterButton,
@@ -388,7 +386,7 @@ export default function HistoryScreen() {
       <View style={styles.screenHeader}>
         <ThemedText type="title" style={styles.screenTitle}>History</ThemedText>
         <ThemedText style={[styles.headerSubtitle, { color: colors.icon }]}>
-          {displayedRuns.length} {displayedRuns.length === 1 ? 'run logged' : 'runs logged'}
+          {pagination ? `${pagination.total} ${pagination.total === 1 ? 'run' : 'runs'} logged` : 'Loading...'}
         </ThemedText>
       </View>
 
@@ -570,18 +568,25 @@ export default function HistoryScreen() {
         </View>
       </Modal>
 
-      {/* Run List */}
-      <FlatList
-        data={displayedRuns}
-        renderItem={renderRunItem}
-        keyExtractor={item => item.id}
-        contentContainerStyle={styles.listContent}
-        onEndReached={loadMoreRuns}
-        onEndReachedThreshold={0.5}
-        ListFooterComponent={renderFooter}
-        ListEmptyComponent={renderEmpty}
-        showsVerticalScrollIndicator={false}
-      />
+      {/* Loading State */}
+      {isInitialLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={accent} />
+        </View>
+      ) : (
+        /* Run List */
+        <FlatList
+          data={displayedRuns}
+          renderItem={renderRunItem}
+          keyExtractor={item => item.id}
+          contentContainerStyle={styles.listContent}
+          onEndReached={loadMoreRuns}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={renderFooter}
+          ListEmptyComponent={renderEmpty}
+          showsVerticalScrollIndicator={false}
+        />
+      )}
     </ThemedView>
   );
 }
@@ -687,10 +692,15 @@ const styles = StyleSheet.create({
   },
   calories: {
     fontSize: 12,
-    opacity: 0.6,
+    fontWeight: '600',
   },
   footer: {
     paddingVertical: 20,
+    alignItems: 'center',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
   },
   emptyContainer: {
@@ -700,6 +710,11 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     opacity: 0.7,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    opacity: 0.5,
+    marginTop: 8,
   },
   customFilterContent: {
     flexDirection: 'row',

@@ -14,6 +14,24 @@ services:
       - auth-db
     networks:
       - microservices-net
+
+  # RabbitMQ Broker
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"   # RabbitMQ communication port
+      - "15672:15672" # Management UI port
+    environment:
+      RABBITMQ_DEFAULT_USER: user
+      RABBITMQ_DEFAULT_PASS: password
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - microservices-net
       
   # PostgreSQL for Auth Service
   auth-db:
@@ -35,8 +53,29 @@ services:
     networks:
       - microservices-net
 
+  # PostgreSQL for Activity Service
+  activity-db:
+    image: postgres:16-alpine
+    container_name: activity-db
+    environment:
+      POSTGRES_DB: activity_db
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5436:5432"
+    volumes:
+      - activity-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d activity_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - microservices-net
+
 volumes:
   auth-db-data:
+  activity-db-data:
 
 networks:
   microservices-net:

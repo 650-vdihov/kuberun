@@ -1,22 +1,17 @@
 import { StyleSheet, View, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { useState, useEffect, useRef } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import NetInfo from '@react-native-community/netinfo';
-import { Play, Pause, Square } from 'lucide-react-native';
+import * as Location from 'expo-location';
+import { Play, Pause, Square, Trash2 } from 'lucide-react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
+import { useApiClient } from '@/hooks/use-api-client';
 
-type ActivityState = 'idle' | 'running' | 'paused';
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL;
 
-interface ActivityData {
-  timestamp: number;
-  latitude: number;
-  longitude: number;
-  speed: number;
-  distance: number;
-}
+// Note: server uses 'active', UI uses 'running' - we map between them
+type ActivityState = 'idle' | 'active' | 'paused';
 
 interface ActivityStats {
   elapsedTime: number;
@@ -25,18 +20,6 @@ interface ActivityStats {
   averageSpeed: number;
 }
 
-interface StoredActivity {
-  id: string;
-  startTime: number;
-  endTime: number;
-  stats: ActivityStats;
-  dataPoints: ActivityData[];
-  synced: boolean;
-}
-
-const STORAGE_KEY = 'stored_activities';
-const SYNC_KEY = 'unsynced_activities';
-
 export default function ActivityScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
@@ -44,7 +27,7 @@ export default function ActivityScreen() {
   const accent = colorScheme === 'dark' ? '#38bdf8' : '#0ea5e9';
   const surface = isDark ? '#1c1f22' : '#ffffff';
   const borderColor = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(15, 23, 42, 0.08)';
-  const warningBackground = isDark ? 'rgba(255, 204, 112, 0.2)' : 'rgba(250, 204, 21, 0.15)';
+  const apiClient = useApiClient();
 
   const [activityState, setActivityState] = useState<ActivityState>('idle');
   const [stats, setStats] = useState<ActivityStats>({
@@ -53,15 +36,67 @@ export default function ActivityScreen() {
     currentSpeed: 0,
     averageSpeed: 0,
   });
-  const [isOnline, setIsOnline] = useState(true);
-  const [unsyncedCount, setUnsyncedCount] = useState(0);
+  const [hasLocationPermission, setHasLocationPermission] = useState(false);
+  const [currentRunId, setCurrentRunId] = useState<string | null>(null);
 
   const timerRef = useRef<any>(null);
   const startTimeRef = useRef<number>(0);
-  const pausedTimeRef = useRef<number>(0);
-  const activityDataBuffer = useRef<ActivityData[]>([]);
-  const currentActivityId = useRef<string>('');
-  const locationUpdateInterval = useRef<any>(null);
+  const pausedElapsedRef = useRef<number>(0); // Store elapsed time when paused
+  const locationSubscription = useRef<Location.LocationSubscription | null>(null);
+  const trackingInterval = useRef<any>(null);
+  const currentRunIdRef = useRef<string | null>(null); // Ref to track run ID in callbacks
+  const sendTrackingPointRef = useRef<((location: Location.LocationObject) => Promise<void>) | null>(null);
+  const prevLocationRef = useRef<{ latitude: number; longitude: number } | null>(null); // Previous location for distance calc
+  const totalDistanceRef = useRef<number>(0); // Accumulated distance in meters
+
+  // Request location permissions
+  useEffect(() => {
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      setHasLocationPermission(status === 'granted');
+      
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permission Required',
+          'Location permission is needed to track your runs.',
+          [{ text: 'OK' }]
+        );
+      }
+    })();
+  }, []);
+
+  // Check for active run on mount
+  useEffect(() => {
+    checkForActiveRun();
+  }, []);
+
+  // Check if there's an active or paused run
+  const checkForActiveRun = async () => {
+    try {
+      const response = await apiClient.get<any>(`${API_BASE_URL}/activity/runs/active/current`);
+      
+      if (response) {
+        setCurrentRunId(response.id);
+        currentRunIdRef.current = response.id; // Set ref for callbacks
+        setActivityState(response.status as ActivityState);
+        
+        // Calculate elapsed time from start time
+        const startTime = new Date(response.startTime).getTime();
+        startTimeRef.current = startTime;
+        
+        if (response.status === 'active') {
+          // Resume timer and tracking
+          startTimer();
+          startLocationTracking();
+        }
+      }
+    } catch (error: any) {
+      // 404 is expected if no active run
+      if (!error.message?.includes('404')) {
+        console.error('Failed to check for active run:', error);
+      }
+    }
+  };
 
   // Format time as HH:MM:SS
   const formatTime = (seconds: number): string => {
@@ -81,265 +116,308 @@ export default function ActivityScreen() {
     return ((metersPerSecond * 3600) / 1000).toFixed(1);
   };
 
-  // Simulate location updates (in production, use expo-location)
-  const simulateLocationUpdate = () => {
-    // Mock data - in production, get real GPS coordinates
-    const mockData: ActivityData = {
-      timestamp: Date.now(),
-      latitude: 46.0569 + Math.random() * 0.001,
-      longitude: 14.5058 + Math.random() * 0.001,
-      speed: Math.random() * 5 + 2, // 2-7 m/s (7-25 km/h)
-      distance: Math.random() * 10 + 5, // 5-15 meters per update
-    };
-
-    // Update current stats
-    setStats(prev => {
-      const newDistance = prev.distance + mockData.distance;
-      const newAvgSpeed = stats.elapsedTime > 0 ? newDistance / stats.elapsedTime : 0;
-      
-      return {
-        ...prev,
-        distance: newDistance,
-        currentSpeed: mockData.speed,
-        averageSpeed: newAvgSpeed,
-      };
-    });
-
-    // Add to buffer for batch sending
-    activityDataBuffer.current.push(mockData);
-  };
-
-  // Load unsynced activities count
-  const loadUnsyncedCount = async () => {
-    try {
-      const stored = await AsyncStorage.getItem(SYNC_KEY);
-      if (stored) {
-        const activities: StoredActivity[] = JSON.parse(stored);
-        setUnsyncedCount(activities.length);
-      }
-    } catch (error) {
-      console.error('Failed to load unsynced count:', error);
-    }
-  };
-
-  // Save activity to local storage
-  const saveActivityLocally = async (activity: StoredActivity) => {
-    try {
-      // Save to unsynced list
-      const stored = await AsyncStorage.getItem(SYNC_KEY);
-      const activities: StoredActivity[] = stored ? JSON.parse(stored) : [];
-      activities.push(activity);
-      await AsyncStorage.setItem(SYNC_KEY, JSON.stringify(activities));
-      
-      // Also save to general storage for history
-      const allActivities = await AsyncStorage.getItem(STORAGE_KEY);
-      const all: StoredActivity[] = allActivities ? JSON.parse(allActivities) : [];
-      all.push(activity);
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(all));
-      
-      setUnsyncedCount(activities.length);
-      console.log('Activity saved locally:', activity.id);
-    } catch (error) {
-      console.error('Failed to save activity locally:', error);
-    }
-  };
-
-  // Sync single activity to backend
-  const syncActivity = async (activity: StoredActivity): Promise<boolean> => {
-    try {
-      // TODO: Replace with actual API endpoint
-      console.log('Syncing activity to backend:', activity.id);
-      
-      // Example API call:
-      // const response = await fetch('https://your-api.com/activities', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify(activity),
-      // });
-      // 
-      // if (!response.ok) throw new Error('Sync failed');
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      return true;
-    } catch (error) {
-      console.error('Failed to sync activity:', error);
-      return false;
-    }
-  };
-
-  // Sync all unsynced activities
-  const syncUnsyncedActivities = async () => {
-    try {
-      const stored = await AsyncStorage.getItem(SYNC_KEY);
-      if (!stored) return;
-
-      const activities: StoredActivity[] = JSON.parse(stored);
-      if (activities.length === 0) return;
-
-      console.log(`Syncing ${activities.length} unsynced activities...`);
-      
-      const stillUnsynced: StoredActivity[] = [];
-      
-      for (const activity of activities) {
-        const success = await syncActivity(activity);
-        if (!success) {
-          stillUnsynced.push(activity);
-        }
-      }
-
-      // Update storage with remaining unsynced activities
-      await AsyncStorage.setItem(SYNC_KEY, JSON.stringify(stillUnsynced));
-      setUnsyncedCount(stillUnsynced.length);
-
-      if (stillUnsynced.length === 0) {
-        console.log('All activities synced successfully!');
-      } else {
-        console.log(`${stillUnsynced.length} activities still pending sync`);
-      }
-    } catch (error) {
-      console.error('Failed to sync activities:', error);
-    }
-  };
-
-  // Monitor network connectivity
-  useEffect(() => {
-    const unsubscribe = NetInfo.addEventListener((state: any) => {
-      const online = state.isConnected ?? false;
-      setIsOnline(online);
-      
-      // When coming back online, try to sync
-      if (online && unsyncedCount > 0) {
-        console.log('Back online! Attempting to sync...');
-        syncUnsyncedActivities();
-      }
-    });
-
-    // Load initial unsynced count
-    loadUnsyncedCount();
-
-    return () => unsubscribe();
-  }, [unsyncedCount]);
-
-  // Start activity
-  const handleStart = () => {
-    setActivityState('running');
-    const activityId = `activity_${Date.now()}`;
-    currentActivityId.current = activityId;
-    startTimeRef.current = Date.now();
-    pausedTimeRef.current = 0;
-    activityDataBuffer.current = [];
-
-    // Start timer
-    timerRef.current = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - startTimeRef.current - pausedTimeRef.current) / 1000);
-      setStats(prev => ({ ...prev, elapsedTime: elapsed }));
-    }, 1000);
-
-    // Start location updates every 5 seconds
-    locationUpdateInterval.current = setInterval(() => {
-      simulateLocationUpdate();
-    }, 5000);
-
-    // Initial location update
-    simulateLocationUpdate();
-  };
-
-  // Pause activity
-  const handlePause = () => {
-    setActivityState('paused');
-
-    if (timerRef.current) clearInterval(timerRef.current);
-    if (locationUpdateInterval.current) clearInterval(locationUpdateInterval.current);
-
-    // Calculate and store total paused time
-    const currentElapsed = Date.now() - startTimeRef.current - pausedTimeRef.current;
-    pausedTimeRef.current = Date.now() - startTimeRef.current - currentElapsed;
-  };
-
-  // Resume activity
-  const handleResume = () => {
-    setActivityState('running');
+  // Start timer
+  const startTimer = () => {
+    if (timerRef.current) return;
     
-    // Update start time to account for pause duration
-    const pauseDuration = Date.now() - (startTimeRef.current + pausedTimeRef.current + stats.elapsedTime * 1000);
-    startTimeRef.current = Date.now() - stats.elapsedTime * 1000;
-    pausedTimeRef.current = 0;
-
-    // Restart timer
+    // Set start time accounting for any previously elapsed time
+    startTimeRef.current = Date.now() - (pausedElapsedRef.current * 1000);
+    
     timerRef.current = setInterval(() => {
       const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
       setStats(prev => ({ ...prev, elapsedTime: elapsed }));
     }, 1000);
+  };
 
-    // Restart location updates
-    locationUpdateInterval.current = setInterval(() => {
-      simulateLocationUpdate();
-    }, 5000);
+  // Stop timer (and save elapsed time)
+  const stopTimer = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+      // Save current elapsed time for resume
+      pausedElapsedRef.current = stats.elapsedTime;
+    }
+  };
+
+  // Calculate distance between two GPS points using Haversine formula (returns meters)
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371e3; // Earth's radius in meters
+    const φ1 = (lat1 * Math.PI) / 180;
+    const φ2 = (lat2 * Math.PI) / 180;
+    const Δφ = ((lat2 - lat1) * Math.PI) / 180;
+    const Δλ = ((lon2 - lon1) * Math.PI) / 180;
+
+    const a =
+      Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+      Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c;
+  };
+
+  // Send tracking point to server
+  const sendTrackingPoint = async (location: Location.LocationObject) => {
+    const runId = currentRunIdRef.current;
+    if (!runId) {
+      console.log('sendTrackingPoint: No runId available');
+      return;
+    }
+
+    try {
+      const { latitude, longitude } = location.coords;
+
+      // Calculate distance from previous point
+      if (prevLocationRef.current) {
+        const segmentDistance = calculateDistance(
+          prevLocationRef.current.latitude,
+          prevLocationRef.current.longitude,
+          latitude,
+          longitude
+        );
+        
+        // Only add distance if it's reasonable (filter out GPS jitter)
+        if (segmentDistance < 100) { // Max 100m between 5-second intervals (~72 km/h max)
+          totalDistanceRef.current += segmentDistance;
+        }
+      }
+
+      // Update previous location
+      prevLocationRef.current = { latitude, longitude };
+
+      // Calculate average speed (m/s)
+      const elapsedSeconds = Math.floor((Date.now() - startTimeRef.current) / 1000);
+      const avgSpeed = elapsedSeconds > 0 ? totalDistanceRef.current / elapsedSeconds : 0;
+
+      // Update UI stats
+      setStats(prev => ({
+        ...prev,
+        distance: totalDistanceRef.current,
+        currentSpeed: location.coords.speed || 0,
+        averageSpeed: avgSpeed,
+      }));
+
+      const trackingData = {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+        altitude: location.coords.altitude || 0,
+        speed: location.coords.speed || 0,
+        accuracy: location.coords.accuracy || 0,
+        timestamp: new Date(location.timestamp).toISOString(),
+      };
+
+      console.log('Sending tracking point:', trackingData, 'Total distance:', totalDistanceRef.current);
+      await apiClient.post(`${API_BASE_URL}/activity/runs/${runId}/track`, trackingData);
+    } catch (error) {
+      console.error('Failed to send tracking point:', error);
+    }
+  };
+
+  // Keep sendTrackingPointRef updated with latest function
+  sendTrackingPointRef.current = sendTrackingPoint;
+
+  // Start location tracking
+  const startLocationTracking = async () => {
+    if (!hasLocationPermission) return;
+    
+    // Stop any existing tracking first
+    stopLocationTracking();
+
+    try {
+      // Use interval-based polling for reliable tracking
+      // This ensures we get points even when stationary or on emulator
+      trackingInterval.current = setInterval(async () => {
+        try {
+          const location = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.BestForNavigation,
+          });
+          console.log('Got location update:', location.coords);
+          sendTrackingPointRef.current?.(location);
+        } catch (error) {
+          console.error('Failed to get current position:', error);
+        }
+      }, 5000); // Send every 5 seconds
+
+      // Also get initial position immediately
+      const initialLocation = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.BestForNavigation,
+      });
+      console.log('Got initial location:', initialLocation.coords);
+      sendTrackingPointRef.current?.(initialLocation);
+    } catch (error) {
+      console.error('Failed to start location tracking:', error);
+      Alert.alert('Error', 'Failed to start GPS tracking');
+    }
+  };
+
+  // Stop location tracking
+  const stopLocationTracking = () => {
+    if (trackingInterval.current) {
+      clearInterval(trackingInterval.current);
+      trackingInterval.current = null;
+    }
+    if (locationSubscription.current) {
+      try {
+        locationSubscription.current.remove();
+      } catch (error) {
+        console.warn('Error removing location subscription:', error);
+      }
+      locationSubscription.current = null;
+    }
+  };
+
+  // Start activity
+  const handleStart = async () => {
+    if (!hasLocationPermission) {
+      Alert.alert('Permission Required', 'Location permission is needed to track your runs.');
+      return;
+    }
+
+    try {
+      // Start run on server
+      const response = await apiClient.post<any>(`${API_BASE_URL}/activity/runs/start`, {});
+      
+      const runId = response.id;
+      setCurrentRunId(runId);
+      currentRunIdRef.current = runId; // Set ref immediately for callbacks
+      setActivityState('active');
+      startTimeRef.current = Date.now();
+      pausedElapsedRef.current = 0; // Reset paused elapsed time
+      prevLocationRef.current = null; // Reset previous location
+      totalDistanceRef.current = 0; // Reset distance
+      
+      // Start timer
+      startTimer();
+      
+      // Start location tracking
+      await startLocationTracking();
+    } catch (error) {
+      console.error('Failed to start run:', error);
+      Alert.alert('Error', 'Failed to start run. Please try again.');
+    }
+  };
+
+  // Pause activity
+  const handlePause = async () => {
+    if (!currentRunId) return;
+
+    try {
+      await apiClient.post(`${API_BASE_URL}/activity/runs/${currentRunId}/pause`, {});
+      
+      setActivityState('paused');
+      stopTimer();
+      stopLocationTracking();
+    } catch (error) {
+      console.error('Failed to pause run:', error);
+      Alert.alert('Error', 'Failed to pause run. Please try again.');
+    }
+  };
+
+  // Resume activity
+  const handleResume = async () => {
+    if (!currentRunId) return;
+
+    try {
+      await apiClient.post(`${API_BASE_URL}/activity/runs/${currentRunId}/resume`, {});
+      
+      currentRunIdRef.current = currentRunId; // Ensure ref is set for callbacks
+      setActivityState('active');
+      startTimer();
+      await startLocationTracking();
+    } catch (error) {
+      console.error('Failed to resume run:', error);
+      Alert.alert('Error', 'Failed to resume run. Please try again.');
+    }
+  };
+
+  // Discard run (cancel without saving)
+  const handleDiscard = () => {
+    console.log('handleDiscard called');
+    discardRun();
+  };
+
+  // Actually perform the discard
+  const discardRun = async () => {
+    try {
+      stopTimer();
+      stopLocationTracking();
+
+      if (currentRunId) {
+        // Delete the run from server
+        const response = await apiClient.fetch(`${API_BASE_URL}/activity/runs/${currentRunId}`, {
+          method: 'DELETE',
+        });
+        if (!response.ok) {
+          console.error('Failed to delete run on server');
+        }
+      }
+    } catch (error) {
+      console.error('Failed to discard run:', error);
+    } finally {
+      // Always reset local state
+      setActivityState('idle');
+      setCurrentRunId(null);
+      currentRunIdRef.current = null; // Clear ref
+      prevLocationRef.current = null; // Clear previous location
+      totalDistanceRef.current = 0; // Clear distance
+      setStats({
+        elapsedTime: 0,
+        distance: 0,
+        currentSpeed: 0,
+        averageSpeed: 0,
+      });
+      startTimeRef.current = 0;
+      pausedElapsedRef.current = 0;
+    }
   };
 
   // End activity
   const handleEnd = async () => {
-    // Clear all intervals
-    if (timerRef.current) clearInterval(timerRef.current);
-    if (locationUpdateInterval.current) clearInterval(locationUpdateInterval.current);
+    if (!currentRunId) return;
 
-    // Create activity record
-    const activity: StoredActivity = {
-      id: currentActivityId.current,
-      startTime: startTimeRef.current,
-      endTime: Date.now(),
-      stats: { ...stats },
-      dataPoints: [...activityDataBuffer.current],
-      synced: false,
-    };
+    try {
+      // Stop timer and tracking
+      stopTimer();
+      stopLocationTracking();
 
-    // Save locally first
-    await saveActivityLocally(activity);
+      // Complete run on server
+      const response = await apiClient.post<any>(`${API_BASE_URL}/activity/runs/${currentRunId}/complete`, {});
 
-    // Try to sync if online
-    if (isOnline) {
-      const synced = await syncActivity(activity);
-      if (synced) {
-        // Remove from unsynced list
-        const stored = await AsyncStorage.getItem(SYNC_KEY);
-        if (stored) {
-          let activities: StoredActivity[] = JSON.parse(stored);
-          activities = activities.filter(a => a.id !== activity.id);
-          await AsyncStorage.setItem(SYNC_KEY, JSON.stringify(activities));
-          setUnsyncedCount(activities.length);
-        }
-      }
+      // Show success message with stats
+      const distance = parseFloat(response.distance) / 1000;
+      const duration = response.duration;
+      const mins = Math.floor(duration / 60);
+      
+      Alert.alert(
+        'Run Completed!',
+        `Distance: ${distance.toFixed(2)} km\nTime: ${mins} minutes`,
+        [{ text: 'OK' }]
+      );
+
+      // Reset state
+      setActivityState('idle');
+      setCurrentRunId(null);
+      currentRunIdRef.current = null; // Clear ref
+      prevLocationRef.current = null; // Clear previous location
+      totalDistanceRef.current = 0; // Clear distance
+      setStats({
+        elapsedTime: 0,
+        distance: 0,
+        currentSpeed: 0,
+        averageSpeed: 0,
+      });
+      startTimeRef.current = 0;
+      pausedElapsedRef.current = 0;
+    } catch (error: any) {
+      console.error('Failed to complete run:', error);
+      Alert.alert('Error', error.message || 'Failed to complete run. Please try again.');
     }
-
-    // Show success message
-    Alert.alert(
-      'Activity Saved!',
-      isOnline 
-        ? 'Your activity has been saved and synced.' 
-        : 'Your activity has been saved locally and will sync when you\'re back online.',
-      [{ text: 'OK' }]
-    );
-
-    // Reset
-    setActivityState('idle');
-    setStats({
-      elapsedTime: 0,
-      distance: 0,
-      currentSpeed: 0,
-      averageSpeed: 0,
-    });
-    startTimeRef.current = 0;
-    pausedTimeRef.current = 0;
-    activityDataBuffer.current = [];
   };
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-      if (locationUpdateInterval.current) clearInterval(locationUpdateInterval.current);
+      stopTimer();
+      stopLocationTracking();
     };
   }, []);
 
@@ -350,30 +428,13 @@ export default function ActivityScreen() {
           Activity
         </ThemedText>
         <ThemedText style={[styles.subtitle, { color: colors.icon }]}>
-          Track your next adventure
+          Track your running activity
         </ThemedText>
       </View>
       <ScrollView 
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Sync Button */}
-        {activityState === 'idle' && unsyncedCount > 0 && (
-          <TouchableOpacity 
-            style={[
-              styles.syncButton, 
-              { backgroundColor: accent },
-              !isOnline && styles.syncButtonDisabled
-            ]}
-            onPress={syncUnsyncedActivities}
-            disabled={!isOnline}
-          >
-            <ThemedText style={[styles.syncButtonText, { color: colors.background }]}>
-              Sync {unsyncedCount} unsynced {unsyncedCount === 1 ? 'activity' : 'activities'}
-            </ThemedText>
-          </TouchableOpacity>
-        )}
-
         {/* Timer Section */}
         <View style={[styles.section, { backgroundColor: surface, borderColor }]}>
           <ThemedText style={[styles.label, { color: colors.icon }]}>Time</ThemedText>
@@ -418,11 +479,11 @@ export default function ActivityScreen() {
           </View>
         </View>
 
-        {/* Info Box */}
-        {activityState !== 'idle' && !isOnline && (
-          <View style={[styles.infoBox, { backgroundColor: warningBackground }]}>
+        {/* GPS Status */}
+        {activityState !== 'idle' && !hasLocationPermission && (
+          <View style={[styles.infoBox, { backgroundColor: 'rgba(239, 68, 68, 0.2)' }]}>
             <ThemedText style={[styles.infoText, { color: colors.text }]}>
-              ⚠️ Offline mode - Activity will sync when online
+              ⚠️ GPS tracking disabled - enable location permissions
             </ThemedText>
           </View>
         )}
@@ -435,11 +496,11 @@ export default function ActivityScreen() {
             style={[styles.actionButton, { backgroundColor: accent }]} 
             onPress={handleStart}
           >
-            <Play size={32} color="#ffffffff" fill="#FFFFFF" />
+            <Play size={32} color="#FFFFFF" fill="#FFFFFF" />
           </TouchableOpacity>
         )}
 
-        {activityState === 'running' && (
+        {activityState === 'active' && (
           <>
             <TouchableOpacity style={[styles.actionButton, styles.pauseButton]} onPress={handlePause}>
               <Pause size={32} color="#FFFFFF" fill="#FFFFFF" />
@@ -460,6 +521,15 @@ export default function ActivityScreen() {
             </TouchableOpacity>
             <TouchableOpacity style={[styles.actionButton, styles.endButton]} onPress={handleEnd}>
               <Square size={32} color="#FFFFFF" fill="#FFFFFF" />
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.actionButton, styles.discardButton]} 
+              onPress={() => {
+                handleDiscard();
+              }}
+              activeOpacity={0.7}
+            >
+              <Trash2 size={28} color="#FFFFFF" />
             </TouchableOpacity>
           </>
         )}
@@ -578,18 +648,8 @@ const styles = StyleSheet.create({
   endButton: {
     backgroundColor: '#ef4444',
   },
-  syncButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 16,
-    marginBottom: 20,
-    alignItems: 'center',
-  },
-  syncButtonDisabled: {
-    opacity: 0.5,
-  },
-  syncButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
+  discardButton: {
+    backgroundColor: '#6b7280',
+    flex: 0.5,
   },
 });

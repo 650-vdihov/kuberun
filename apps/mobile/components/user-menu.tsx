@@ -16,6 +16,7 @@ import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useAuth } from "@/contexts/auth-context";
 import { useClubs } from "@/contexts/clubs-context";
+import { useUserProfile } from "@/contexts/user-profile-context";
 
 export function UserMenu() {
     const [isOpen, setIsOpen] = useState(false);
@@ -25,16 +26,16 @@ export function UserMenu() {
     const colors = Colors[colorScheme ?? "light"];
     const { user, signOut } = useAuth();
     const { invites } = useClubs();
+    const { profile } = useUserProfile();
     
     // Count pending invites
     const pendingInvitesCount = invites.filter(i => i.status === 'pending').length;
     
-    // Use auth user data with fallback for avatar
-    // user.image comes from better-auth User type
+    // Use profile data with fallback to auth user
     const displayUser = {
-        name: user?.name ?? "User",
+        name: (profile?.name || user?.name) ?? "User",
         email: user?.email ?? "",
-        image: user?.image ?? 'https://i.pravatar.cc/150?img=1',
+        image: profile?.image || user?.image || undefined,
     };
 
     const handleNavigate = (route: string) => {
