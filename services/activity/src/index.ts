@@ -2,6 +2,7 @@ import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
+import { metricsHandler, metricsMiddleware } from "@repo/metrics";
 import dotenv from "dotenv";
 import { authMiddleware, getUser } from "./middleware/auth.js";
 import { db } from "./db/index.js";
@@ -17,6 +18,7 @@ dotenv.config();
 
 const app = new Hono();
 
+app.use("*", metricsMiddleware());
 app.use("*", logger());
 app.use(
   "/*",
@@ -32,6 +34,8 @@ app.use(
 app.get("/", (c) => {
   return c.text("Activity Service");
 });
+
+app.get("/metrics", metricsHandler);
 
 app.get("/health", (c) => {
   return c.json({ status: "ok", service: "activity" }, 200);

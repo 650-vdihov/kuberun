@@ -163,6 +163,22 @@ importers:
         specifier: ^8.40.0
         version: 8.46.4(eslint@9.39.1)(typescript@5.9.2)
 
+  packages/metrics:
+    dependencies:
+      hono:
+        specifier: ^4.10.7
+        version: 4.11.3
+      prom-client:
+        specifier: ^15.1.0
+        version: 15.1.3
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.17
+        version: 20.19.25
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.2
+
   packages/typescript-config: {}
 
   services/activity:
@@ -170,6 +186,9 @@ importers:
       '@hono/node-server':
         specifier: ^1.19.6
         version: 1.19.6(hono@4.11.3)
+      '@repo/metrics':
+        specifier: workspace:*
+        version: link:../../packages/metrics
       amqplib:
         specifier: ^0.10.5
         version: 0.10.9
@@ -178,7 +197,7 @@ importers:
         version: 17.2.3
       drizzle-orm:
         specifier: ^0.36.4
-        version: 0.36.4(@types/react@19.1.17)(kysely@0.28.9)(postgres@3.4.7)(react@19.1.0)
+        version: 0.36.4(@opentelemetry/api@1.9.0)(@types/react@19.1.17)(kysely@0.28.9)(postgres@3.4.7)(react@19.1.0)
       hono:
         specifier: ^4.11.3
         version: 4.11.3
@@ -210,15 +229,18 @@ importers:
       '@hono/node-server':
         specifier: ^1.19.6
         version: 1.19.6(hono@4.10.7)
+      '@repo/metrics':
+        specifier: workspace:*
+        version: link:../../packages/metrics
       better-auth:
         specifier: ^1.4.9
-        version: 1.4.9(drizzle-kit@0.31.8)(drizzle-orm@0.45.1(kysely@0.28.9)(postgres@3.4.7))(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+        version: 1.4.9(drizzle-kit@0.31.8)(drizzle-orm@0.45.1(@opentelemetry/api@1.9.0)(kysely@0.28.9)(postgres@3.4.7))(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       dotenv:
         specifier: ^17.2.3
         version: 17.2.3
       drizzle-orm:
         specifier: ^0.45.1
-        version: 0.45.1(kysely@0.28.9)(postgres@3.4.7)
+        version: 0.45.1(@opentelemetry/api@1.9.0)(kysely@0.28.9)(postgres@3.4.7)
       hono:
         specifier: ^4.10.7
         version: 4.10.7
@@ -247,6 +269,9 @@ importers:
       '@hono/node-server':
         specifier: ^1.19.5
         version: 1.19.6(hono@4.10.7)
+      '@repo/metrics':
+        specifier: workspace:*
+        version: link:../../packages/metrics
       amqplib:
         specifier: ^0.10.5
         version: 0.10.9
@@ -1534,6 +1559,10 @@ packages:
     resolution: {integrity: sha512-nn5ozdjYQpUCZlWGuxcJY/KpxkWQs4DcbMCmKojjyrYDEAGy4Ce19NN4v5MduafTwJlbKc99UA8YhSVqq9yPZA==}
     engines: {node: '>=12.4.0'}
 
+  '@opentelemetry/api@1.9.0':
+    resolution: {integrity: sha512-3giAOQvZiH5F9bMlMiv8+GSPMeqg0dbaeo58/0SlA9sxSqZhnUtxzX9/2FzyhS9sWQf5S0GJE0AKBrFqjpeYcg==}
+    engines: {node: '>=8.0.0'}
+
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
     engines: {node: '>=14'}
@@ -2410,6 +2439,9 @@ packages:
   big-integer@1.6.52:
     resolution: {integrity: sha512-QxD8cf2eVqJOOz63z6JIN9BzvVs/dlySa5HGSBH5xtR8dPteIRQnBxxKqkNTiT6jbDTF6jAfrd4oMcND9RGbQg==}
     engines: {node: '>=0.6'}
+
+  bintrees@1.0.2:
+    resolution: {integrity: sha512-VOMgTMwjAaUG580SXn3LacVgjurrbMme7ZZNYGSSV7mmtY6QQRh0Eg3pwIcntQ77DErK1L0NxkbetjcoXzVwKw==}
 
   boolbase@1.0.0:
     resolution: {integrity: sha512-JZOSA7Mo9sNGB8+UjSgzdLtokWAky1zbztM3WRLCbZ70/3cTANmQmOdR7y2g+J0e2WXywy1yS468tY+IruqEww==}
@@ -4491,6 +4523,10 @@ packages:
     resolution: {integrity: sha512-7PiHtLll5LdnKIMw100I+8xJXR5gW2QwWYkT6iJva0bXitZKa/XMrSbdmg3r2Xnaidz9Qumd0VPaMrZlF9V9sA==}
     engines: {node: '>=0.4.0'}
 
+  prom-client@15.1.3:
+    resolution: {integrity: sha512-6ZiOBfCywsD4k1BN9IX0uZhF+tJkV8q8llP64G5Hajs4JOeVLPCwpPVcpXy3BwYiUGgyJzsJJQeOIv7+hDSq8g==}
+    engines: {node: ^16 || ^18 || >=20}
+
   promise@7.3.1:
     resolution: {integrity: sha512-nolQXZ/4L+bP/UGlkfaIujX9BKxGwmQ9OT4mOt5yvy8iK1h3wqTEJCijzGANTCCl9nWjY41juyAn2K3Q1hLLTg==}
 
@@ -5048,6 +5084,9 @@ packages:
   tar@7.5.2:
     resolution: {integrity: sha512-7NyxrTE4Anh8km8iEy7o0QYPs+0JKBTj5ZaqHg6B39erLg0qYXN3BijtShwbsNSvQ+LN75+KV+C4QR/f6Gwnpg==}
     engines: {node: '>=18'}
+
+  tdigest@0.1.2:
+    resolution: {integrity: sha512-+G0LLgjjo9BZX2MfdvPfH+MKLCrxlXSYec5DaPYP1fe6Iyhf0/fSmJ0bFiZ1F8BT6cGXl2LpltQptzjXKWEkKA==}
 
   temp-dir@2.0.0:
     resolution: {integrity: sha512-aoBAniQmmwtcKp/7BzsH8Cxzv8OL736p7v1ihGb5e9DJ9kTwGWHrQrVB5+lfVDzfGrdRzXch+ig7LHaY1JTOrg==}
@@ -6851,6 +6890,8 @@ snapshots:
 
   '@nolyfill/is-core-module@1.0.39': {}
 
+  '@opentelemetry/api@1.9.0': {}
+
   '@pkgjs/parseargs@0.11.0':
     optional: true
 
@@ -7777,7 +7818,7 @@ snapshots:
 
   baseline-browser-mapping@2.8.28: {}
 
-  better-auth@1.4.9(drizzle-kit@0.31.8)(drizzle-orm@0.45.1(kysely@0.28.9)(postgres@3.4.7))(react-dom@19.1.0(react@19.1.0))(react@19.1.0):
+  better-auth@1.4.9(drizzle-kit@0.31.8)(drizzle-orm@0.45.1(@opentelemetry/api@1.9.0)(kysely@0.28.9)(postgres@3.4.7))(react-dom@19.1.0(react@19.1.0))(react@19.1.0):
     dependencies:
       '@better-auth/core': 1.4.9(@better-auth/utils@0.3.0)(@better-fetch/fetch@1.1.21)(better-call@1.1.7(zod@4.2.1))(jose@6.1.3)(kysely@0.28.9)(nanostores@1.1.0)
       '@better-auth/telemetry': 1.4.9(@better-auth/core@1.4.9(@better-auth/utils@0.3.0)(@better-fetch/fetch@1.1.21)(better-call@1.1.7(zod@4.2.1))(jose@6.1.3)(kysely@0.28.9)(nanostores@1.1.0))
@@ -7793,7 +7834,7 @@ snapshots:
       zod: 4.2.1
     optionalDependencies:
       drizzle-kit: 0.31.8
-      drizzle-orm: 0.45.1(kysely@0.28.9)(postgres@3.4.7)
+      drizzle-orm: 0.45.1(@opentelemetry/api@1.9.0)(kysely@0.28.9)(postgres@3.4.7)
       react: 19.1.0
       react-dom: 19.1.0(react@19.1.0)
 
@@ -7811,6 +7852,8 @@ snapshots:
       open: 8.4.2
 
   big-integer@1.6.52: {}
+
+  bintrees@1.0.2: {}
 
   boolbase@1.0.0: {}
 
@@ -8154,15 +8197,17 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  drizzle-orm@0.36.4(@types/react@19.1.17)(kysely@0.28.9)(postgres@3.4.7)(react@19.1.0):
+  drizzle-orm@0.36.4(@opentelemetry/api@1.9.0)(@types/react@19.1.17)(kysely@0.28.9)(postgres@3.4.7)(react@19.1.0):
     optionalDependencies:
+      '@opentelemetry/api': 1.9.0
       '@types/react': 19.1.17
       kysely: 0.28.9
       postgres: 3.4.7
       react: 19.1.0
 
-  drizzle-orm@0.45.1(kysely@0.28.9)(postgres@3.4.7):
+  drizzle-orm@0.45.1(@opentelemetry/api@1.9.0)(kysely@0.28.9)(postgres@3.4.7):
     optionalDependencies:
+      '@opentelemetry/api': 1.9.0
       kysely: 0.28.9
       postgres: 3.4.7
 
@@ -10148,6 +10193,11 @@ snapshots:
 
   progress@2.0.3: {}
 
+  prom-client@15.1.3:
+    dependencies:
+      '@opentelemetry/api': 1.9.0
+      tdigest: 0.1.2
+
   promise@7.3.1:
     dependencies:
       asap: 2.0.6
@@ -10814,6 +10864,10 @@ snapshots:
       minipass: 7.1.2
       minizlib: 3.1.0
       yallist: 5.0.0
+
+  tdigest@0.1.2:
+    dependencies:
+      bintrees: 1.0.2
 
   temp-dir@2.0.0: {}
 
