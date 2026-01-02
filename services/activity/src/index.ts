@@ -7,6 +7,7 @@ import { authMiddleware, getUser } from "./middleware/auth.js";
 import { db } from "./db/index.js";
 import { userProfiles, runs, runTrackingPoints } from "./db/schema.js";
 import { eq, desc, and, sql, gte, lte, count } from "drizzle-orm";
+import { initRabbitMQ, publishRunCompleted } from "./rabbitmq.js";
 
 dotenv.config();
 
@@ -390,7 +391,23 @@ app.post("/runs/:id/complete", authMiddleware(), async (c) => {
     .where(eq(runs.id, id))
     .returning();
 
-  return c.json(updated[0]);
+  const completedRun = updated[0];
+
+  // Publish to RabbitMQ
+  await publishRunCompleted({
+    runId: completedRun.id,
+    userId: completedRun.userId,
+    distance: completedRun.distance || "0",
+    duration: completedRun.duration || 0,
+    pace: completedRun.pace || "0",
+    avgSpeed: completedRun.avgSpeed || "0",
+    calories: completedRun.calories || 0,
+    startTime: completedRun.startTime,
+    endTime: completedRun.endTime || new Date(),
+    completedAt: new Date(),
+  });
+
+  return c.json(completedRun);
 });
 
 // Helper function: Calculate distance between two GPS points (Haversine formula)
@@ -650,12 +667,17 @@ app.get("/dashboard/featured", authMiddleware(), async (c) => {
 
 const port = process.env.PORT ? parseInt(process.env.PORT) : 4002;
 
-serve(
-  {
-    fetch: app.fetch,
-    port,
-  },
-  (info) => {
-    console.log(`Activity service is running on http://localhost:${info.port}`);
-  }
-);
+// Initialize RabbitMQ and start server
+initRabbitMQ().then(() => {
+  serve(
+    {
+      fetch: app.fetch,
+      port,
+    },
+    (info) => {
+      console.log(
+        `Activity service is running on http://localhost:${info.port}`
+      );
+    }
+  );
+});
