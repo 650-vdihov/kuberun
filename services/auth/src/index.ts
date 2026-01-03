@@ -3,12 +3,10 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { metricsHandler, metricsMiddleware } from "@repo/metrics";
-import dotenv from "dotenv";
+import { config } from "./config.js";
 import { auth } from "./auth.js";
 import { db } from "./db/index.js";
 import { sql } from "drizzle-orm";
-
-dotenv.config();
 
 const app = new Hono();
 
@@ -18,9 +16,7 @@ app.use("*", logger());
 app.use(
   "*",
   cors({
-    origin: process.env.TRUSTED_ORIGINS?.split(",") || [
-      "http://localhost:4000",
-    ],
+    origin: config.trustedOrigins,
     credentials: true,
   })
 );
@@ -41,7 +37,10 @@ app.get("/ready", async (c) => {
   // Check database connectivity with timeout
   try {
     const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error("Database timeout")), 3000)
+      setTimeout(
+        () => reject(new Error("Database timeout")),
+        config.readinessTimeoutMs
+      )
     );
     const dbPromise = db.execute(sql`SELECT 1`);
 
@@ -76,12 +75,10 @@ app.get("/.well-known/jwks.json", async (c) => {
   return response;
 });
 
-const port = process.env.PORT ? parseInt(process.env.PORT) : 4001;
-
 serve(
   {
     fetch: app.fetch,
-    port,
+    port: config.port,
   },
   (info) => {
     console.log(`🚀 Auth service is running on http://localhost:${info.port}`);

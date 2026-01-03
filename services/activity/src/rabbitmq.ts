@@ -1,9 +1,5 @@
 import amqp from "amqplib";
-
-const RABBITMQ_URL =
-  process.env.RABBITMQ_URL || "amqp://user:password@localhost:5672";
-const RUN_COMPLETED_QUEUE = "run.completed";
-const RECONNECT_INTERVAL = 10000; // 10 seconds between reconnection attempts
+import { config } from "./config.js";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let connection: any = null;
@@ -41,16 +37,16 @@ async function connect(): Promise<boolean> {
   try {
     console.log("[RabbitMQ] Attempting to connect...");
 
-    // Add connection timeout (5 seconds) and heartbeat to detect dead connections
-    connection = await amqp.connect(RABBITMQ_URL, {
-      timeout: 5000,
-      heartbeat: 30, // Send heartbeat every 30 seconds to detect dead connections
+    // Add connection timeout and heartbeat to detect dead connections
+    connection = await amqp.connect(config.rabbitmqUrl, {
+      timeout: config.rabbitmqConnectionTimeoutMs,
+      heartbeat: config.rabbitmqHeartbeatSeconds,
     });
 
     channel = await connection.createChannel();
 
     // Ensure the queue exists
-    await channel.assertQueue(RUN_COMPLETED_QUEUE, { durable: true });
+    await channel.assertQueue(config.rabbitmqRunCompletedQueue, { durable: true });
 
     console.log("[RabbitMQ] Connected successfully");
 
@@ -101,7 +97,7 @@ async function reconnectLoop(): Promise<void> {
     }
 
     // Wait before next check
-    await new Promise((resolve) => setTimeout(resolve, RECONNECT_INTERVAL));
+    await new Promise((resolve) => setTimeout(resolve, config.rabbitmqReconnectIntervalMs));
   }
 
   reconnectLoopRunning = false;
@@ -131,7 +127,7 @@ export async function publishRunCompleted(
 
   try {
     const message = JSON.stringify(data);
-    channel.sendToQueue(RUN_COMPLETED_QUEUE, Buffer.from(message), {
+    channel.sendToQueue(config.rabbitmqRunCompletedQueue, Buffer.from(message), {
       persistent: true,
       contentType: "application/json",
     });

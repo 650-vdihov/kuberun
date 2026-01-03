@@ -1,15 +1,9 @@
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "./schema.js";
-import dotenv from "dotenv";
+import { config } from "../config.js";
 
-dotenv.config();
-
-const connectionString = process.env.DATABASE_URL;
-
-if (!connectionString) {
-  throw new Error("DATABASE_URL is not set");
-}
+const connectionString = config.databaseUrl;
 
 // For migrations
 export const migrationClient = postgres(connectionString, { max: 1 });
