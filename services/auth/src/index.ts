@@ -2,6 +2,7 @@ import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
+import { metricsHandler, metricsMiddleware } from "@repo/metrics";
 import dotenv from "dotenv";
 import { auth } from "./auth.js";
 import { db } from "./db/index.js";
@@ -12,6 +13,7 @@ dotenv.config();
 const app = new Hono();
 
 // Middleware
+app.use("*", metricsMiddleware());
 app.use("*", logger());
 app.use(
   "*",
@@ -57,6 +59,8 @@ app.get("/ready", async (c) => {
 
   return c.json({ ready: allHealthy, checks }, allHealthy ? 200 : 503);
 });
+
+app.get("/metrics", metricsHandler);
 
 // Mount better-auth handler on /api/auth/*
 app.on(["POST", "GET"], "/api/auth/**", (c) => {

@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.19.6",
+    "@repo/metrics": "workspace:*",
     "amqplib": "^0.10.5",
     "dotenv": "^17.2.3",
     "drizzle-orm": "^0.36.4",

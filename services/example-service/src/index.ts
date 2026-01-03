@@ -7,11 +7,13 @@ import {
   startConsuming,
   isConnected as isRabbitMQConnected,
 } from "./rabbitmq.js";
+import { metricsHandler, metricsMiddleware } from "@repo/metrics";
 
 dotenv.config();
 
 const app = new Hono();
 
+app.use("*", metricsMiddleware());
 app.use(
   "/*",
   cors({
@@ -24,6 +26,8 @@ app.use(
 app.get("/", (c) => {
   return c.text("Hello Hono!");
 });
+
+app.get("/metrics", metricsHandler);
 
 app.get("/health", (c) => {
   return c.json({ status: "ok" }, 200);
@@ -67,7 +71,11 @@ app.get("/users/me", authMiddleware(), (c) => {
   });
 });
 
-const port = process.env.PORT ? parseInt(process.env.PORT) : 3000;
+app.get("/error", (c) => {
+  throw new Error("Intentional error for testing");
+});
+
+const port = process.env.PORT ? parseInt(process.env.PORT) : 4009;
 
 // Start RabbitMQ consumer in background (non-blocking)
 startConsuming();

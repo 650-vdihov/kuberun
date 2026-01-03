@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.19.6",
+    "@repo/metrics": "workspace:*",
     "better-auth": "^1.4.9",
     "dotenv": "^17.2.3",
     "drizzle-orm": "^0.45.1",
