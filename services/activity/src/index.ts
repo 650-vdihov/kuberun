@@ -3,7 +3,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { metricsHandler, metricsMiddleware } from "@repo/metrics";
-import dotenv from "dotenv";
+import { config } from "./config.js";
 import { authMiddleware, getUser } from "./middleware/auth.js";
 import { db } from "./db/index.js";
 import { userProfiles, runs, runTrackingPoints } from "./db/schema.js";
@@ -14,8 +14,6 @@ import {
   isConnected as isRabbitMQConnected,
 } from "./rabbitmq.js";
 
-dotenv.config();
-
 const app = new Hono();
 
 app.use("*", metricsMiddleware());
@@ -23,9 +21,7 @@ app.use("*", logger());
 app.use(
   "/*",
   cors({
-    origin: process.env.TRUSTED_ORIGINS?.split(",") || [
-      "http://localhost:4000",
-    ],
+    origin: config.trustedOrigins,
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization"],
   })
@@ -48,7 +44,10 @@ app.get("/ready", async (c) => {
   // Check database connectivity with timeout
   try {
     const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error("Database timeout")), 3000)
+      setTimeout(
+        () => reject(new Error("Database timeout")),
+        config.readinessTimeoutMs
+      )
     );
     const dbPromise = db.execute(sql`SELECT 1`);
 
@@ -706,8 +705,6 @@ app.get("/dashboard/featured", authMiddleware(), async (c) => {
   });
 });
 
-const port = process.env.PORT ? parseInt(process.env.PORT) : 4002;
-
 // Initialize RabbitMQ in background (non-blocking)
 initRabbitMQ();
 
@@ -715,7 +712,7 @@ initRabbitMQ();
 serve(
   {
     fetch: app.fetch,
-    port,
+    port: config.port,
   },
   (info) => {
     console.log(`Activity service is running on http://localhost:${info.port}`);

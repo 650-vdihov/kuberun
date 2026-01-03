@@ -4,12 +4,12 @@ import { bearer, jwt } from "better-auth/plugins";
 import { Resend } from "resend";
 import { db } from "./db/index.js";
 import * as schema from "./db/schema.js";
-import dotenv from "dotenv";
-dotenv.config();
+import { config } from "./config.js";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = new Resend(config.resendApiKey);
 
 export const auth = betterAuth({
+  baseURL: config.betterAuthUrl,
   database: drizzleAdapter(db, {
     provider: "pg",
     schema: {
@@ -24,8 +24,11 @@ export const auth = betterAuth({
     enabled: true,
     requireEmailVerification: false,
     sendResetPassword: async ({ user, url }) => {
+      if (!config.resendApiKey) {
+        throw new Error("RESEND_API_KEY is not set");
+      }
       await resend.emails.send({
-        from: process.env.EMAIL_FROM || "onboarding@resend.dev",
+        from: config.emailFrom,
         to: user.email,
         subject: "Reset your password",
         html: `
@@ -38,20 +41,18 @@ export const auth = betterAuth({
     },
   },
   session: {
-    expiresIn: 7 * 24 * 60 * 60, // Session expiry: 7 days
-    updateAge: 24 * 60 * 60, // Update session every 24 hours
+    expiresIn: config.sessionExpiresInSeconds,
+    updateAge: config.sessionUpdateAgeSeconds,
   },
-  secret: process.env.BETTER_AUTH_SECRET,
-  trustedOrigins: process.env.TRUSTED_ORIGINS?.split(",") || [
-    "http://localhost:4000"
-  ],
+  secret: config.betterAuthSecret,
+  trustedOrigins: config.trustedOrigins,
   plugins: [
     // Bearer plugin: allows clients to use Authorization: Bearer <session_token>
     bearer(),
     // JWT plugin: provides /token endpoint for short-lived JWTs that microservices can validate locally
     jwt({
       jwt: {
-        expirationTime: "15m", // Short-lived JWT for microservices
+        expirationTime: config.jwtExpirationTime,
         definePayload: async ({ user, session }) => ({
           sub: user.id,
           email: user.email,

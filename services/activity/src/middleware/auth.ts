@@ -1,12 +1,10 @@
 import type { Context, Next } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { jwtVerify, createRemoteJWKSet, type JWTPayload } from "jose";
-import dotenv from "dotenv";
-dotenv.config();
+import { config } from "../config.js";
 
 // JWKS URL for fetching public keys from auth service
-const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL || "http://localhost:4001";
-const JWKS_URL = new URL(`${AUTH_SERVICE_URL}/api/auth/jwks`);
+const JWKS_URL = new URL(`${config.authServiceUrl}/api/auth/jwks`);
 
 // Create a remote JWKS - jose handles caching automatically
 const JWKS = createRemoteJWKSet(JWKS_URL);
