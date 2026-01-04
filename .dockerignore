@@ -1,0 +1,12 @@
+**/.DS_Store
+**/*.log
+
+.git
+.pnpm-store
+.turbo
+
+**/node_modules
+**/dist
+
+**/.env
+**/.env.*
