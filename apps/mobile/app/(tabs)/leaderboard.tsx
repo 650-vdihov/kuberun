@@ -1,21 +1,26 @@
 import { StyleSheet, ScrollView, View, Dimensions, FlatList, Image, TouchableOpacity, Modal, Pressable } from 'react-native';
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, useEffect } from 'react';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
 import { useClubs } from '@/contexts/clubs-context';
+import { useApiClient } from '@/hooks/use-api-client';
 import { ChevronDown, Users, Check } from 'lucide-react-native';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface LeaderboardEntry {
   position: number;
-  name: string;
-  profilePicture: string;
+  userId: string;
   value: number;
   unit: string;
   isCurrentUser?: boolean;
+}
+
+interface LeaderboardResponse {
+  distance: LeaderboardEntry[];
+  activeTime: LeaderboardEntry[];
 }
 
 interface LeaderboardData {
@@ -79,6 +84,7 @@ const generateClubLeaderboard = (clubId: string, clubName: string, week: WeekTyp
 
 export default function LeaderboardScreen() {
   const { memberships } = useClubs();
+  const apiClient = useApiClient();
   const [selectedClubId, setSelectedClubId] = useState<string | null>(null);
   const [showClubPicker, setShowClubPicker] = useState(false);
   const [selectedWeek, setSelectedWeek] = useState<WeekType>('this');
@@ -88,6 +94,7 @@ export default function LeaderboardScreen() {
     1: 10,
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [leaderboardData, setLeaderboardData] = useState<LeaderboardData[]>([]);
   const scrollViewRef = useRef<ScrollView>(null);
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
@@ -105,11 +112,37 @@ export default function LeaderboardScreen() {
     return memberships[0]?.club;
   }, [selectedClubId, memberships]);
 
-  // Generate leaderboard data for selected club and week
-  const leaderboardData = useMemo(() => {
-    if (!selectedClub) return [];
-    return generateClubLeaderboard(selectedClub.id, selectedClub.name, selectedWeek);
-  }, [selectedClub, selectedWeek]);
+  // Fetch leaderboard data when club or week changes
+  useEffect(() => {
+    if (!selectedClub?.id) {
+      setLeaderboardData([]);
+      setIsLoading(false);
+      return;
+    }
+
+    const fetchLeaderboard = async () => {
+      setIsLoading(true);
+      try {
+        const endpoint = selectedWeek === 'this' 
+          ? `/leaderboards/club/${selectedClub.id}/weekly`
+          : `/leaderboards/club/${selectedClub.id}/last-week`;
+        
+        const data = await apiClient.get<LeaderboardResponse>(endpoint);
+        
+        setLeaderboardData([
+          { title: 'Distance', entries: data.distance },
+          { title: 'Active Time', entries: data.activeTime },
+        ]);
+      } catch (error) {
+        console.error('Failed to fetch leaderboard:', error);
+        setLeaderboardData([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchLeaderboard();
+  }, [selectedClub?.id, selectedWeek]);
 
   const handleClubSelect = (clubId: string) => {
     setSelectedClubId(clubId);
@@ -188,9 +221,12 @@ export default function LeaderboardScreen() {
         
         <View style={styles.nameColumn}>
           <View style={styles.nameContainer}>
-            <Image source={{ uri: item.profilePicture }} style={styles.profilePicture} />
+            <Image 
+              source={{ uri: `https://i.pravatar.cc/150?u=${item.userId}` }} 
+              style={styles.profilePicture} 
+            />
             <ThemedText style={[styles.name, { color: colors.text }]}>
-              {item.name}
+              {item.isCurrentUser ? 'You' : `User ${item.position}`}
             </ThemedText>
           </View>
         </View>

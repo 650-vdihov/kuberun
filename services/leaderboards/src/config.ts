@@ -37,8 +37,9 @@ function getEnvStringList(name: string, fallback: string[]): string[] {
 }
 
 export const config = {
-  port: getEnvInt("PORT", 4002),
-  databaseUrl: getEnvString("DATABASE_URL"),
+  port: getEnvInt("PORT", 4004),
+  activityDbUrl: getEnvString("ACTIVITY_DB_URL"),
+  clubsDbUrl: getEnvString("CLUBS_DB_URL"),
   authServiceUrl: getEnvString("AUTH_SERVICE_URL", "http://localhost:4001"),
   trustedOrigins: getEnvStringList("TRUSTED_ORIGINS", ["http://localhost:4000"]),
   readinessTimeoutMs: getEnvInt("READINESS_TIMEOUT_MS", 3000),
@@ -51,4 +52,3 @@ export const config = {
   rabbitmqConnectionTimeoutMs: getEnvInt("RABBITMQ_CONNECTION_TIMEOUT_MS", 5000),
   rabbitmqHeartbeatSeconds: getEnvInt("RABBITMQ_HEARTBEAT_SECONDS", 30),
 } as const;
-

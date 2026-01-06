@@ -264,6 +264,43 @@ importers:
         specifier: ^5.8.3
         version: 5.9.2
 
+  services/clubs:
+    dependencies:
+      '@hono/node-server':
+        specifier: ^1.19.6
+        version: 1.19.6(hono@4.11.3)
+      '@repo/metrics':
+        specifier: workspace:*
+        version: link:../../packages/metrics
+      dotenv:
+        specifier: ^17.2.3
+        version: 17.2.3
+      drizzle-orm:
+        specifier: ^0.45.1
+        version: 0.45.1(@opentelemetry/api@1.9.0)(kysely@0.28.9)(postgres@3.4.7)
+      hono:
+        specifier: ^4.10.7
+        version: 4.11.3
+      jose:
+        specifier: ^5.9.6
+        version: 5.10.0
+      postgres:
+        specifier: ^3.4.7
+        version: 3.4.7
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.17
+        version: 20.19.25
+      drizzle-kit:
+        specifier: ^0.31.8
+        version: 0.31.8
+      tsx:
+        specifier: ^4.7.1
+        version: 4.20.6
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.2
+
   services/example-service:
     dependencies:
       '@hono/node-server':
@@ -287,6 +324,46 @@ importers:
     devDependencies:
       '@types/amqplib':
         specifier: ^0.10.6
+        version: 0.10.8
+      '@types/node':
+        specifier: ^20.11.17
+        version: 20.19.25
+      tsx:
+        specifier: ^4.7.1
+        version: 4.20.6
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.2
+
+  services/leaderboards:
+    dependencies:
+      '@hono/node-server':
+        specifier: ^1.19.6
+        version: 1.19.6(hono@4.11.3)
+      '@repo/metrics':
+        specifier: workspace:*
+        version: link:../../packages/metrics
+      amqplib:
+        specifier: ^0.10.5
+        version: 0.10.9
+      dotenv:
+        specifier: ^17.2.3
+        version: 17.2.3
+      drizzle-orm:
+        specifier: ^0.45.1
+        version: 0.45.1(@opentelemetry/api@1.9.0)(kysely@0.28.9)(postgres@3.4.7)
+      hono:
+        specifier: ^4.10.7
+        version: 4.11.3
+      jose:
+        specifier: ^5.9.6
+        version: 5.10.0
+      postgres:
+        specifier: ^3.4.7
+        version: 3.4.7
+    devDependencies:
+      '@types/amqplib':
+        specifier: ^0.10.8
         version: 0.10.8
       '@types/node':
         specifier: ^20.11.17

@@ -115,8 +115,11 @@ class ApiClient {
    */
   async fetch(url: string, options: RequestInit = {}): Promise<Response> {
     const jwt = await this.getJwtToken();
+    
+    // Prepend base URL if url is a relative path
+    const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
 
-    const response = await fetch(url, {
+    const response = await fetch(fullUrl, {
       ...options,
       headers: {
         ...options.headers,
@@ -136,7 +139,7 @@ class ApiClient {
         
         const newJwt = await this.getJwtToken();
         
-        return fetch(url, {
+        return fetch(fullUrl, {
           ...options,
           headers: {
             ...options.headers,
@@ -177,6 +180,40 @@ class ApiClient {
     });
     if (!response.ok) {
       throw new Error(`Request failed: ${response.status}`);
+    }
+    return response.json();
+  }
+
+  /**
+   * Make a PUT request
+   */
+  async put<T>(url: string, body: unknown): Promise<T> {
+    const response = await this.fetch(url, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      throw new Error(`Request failed: ${response.status}`);
+    }
+    return response.json();
+  }
+
+  /**
+   * Make a DELETE request
+   */
+  async delete<T>(url: string): Promise<T> {
+    const response = await this.fetch(url, {
+      method: 'DELETE',
+    });
+    if (!response.ok) {
+      throw new Error(`Request failed: ${response.status}`);
+    }
+    // Handle empty responses (204 No Content)
+    if (response.status === 204) {
+      return {} as T;
     }
     return response.json();
   }

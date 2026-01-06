@@ -1,6 +1,6 @@
 import type { Context, Next } from "hono";
 import { HTTPException } from "hono/http-exception";
-import { jwtVerify, createRemoteJWKSet, type JWTPayload } from "jose";
+import { jwtVerify, createRemoteJWKSet } from "jose";
 import { config } from "../config.js";
 
 // JWKS URL for fetching public keys from auth service
@@ -62,7 +62,6 @@ export const authMiddleware = () => {
         if (error.message.includes("expired")) {
           throw new HTTPException(401, { 
             message: "Token expired",
-            // Include hint for client to refresh token
           });
         }
         if (error.message.includes("signature")) {
@@ -83,9 +82,4 @@ export const getUser = (c: Context): JwtUser => {
     throw new HTTPException(401, { message: "User not authenticated" });
   }
   return user as JwtUser;
-};
-
-// Helper to get full JWT payload from context
-export const getJwtPayload = (c: Context): JWTPayload => {
-  return c.get("jwtPayload");
 };

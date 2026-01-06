@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from './auth-context';
+import { apiClient } from '../lib/api-client';
 
 // Club preferences
 export interface ClubPreferences {
@@ -74,12 +74,6 @@ interface ClubsContextType {
 
 const ClubsContext = createContext<ClubsContextType | undefined>(undefined);
 
-const CLUBS_STORAGE_KEY = '@kuberun_clubs';
-const INVITES_STORAGE_KEY = '@kuberun_invites';
-
-// TODO: Replace with actual API base URL
-const API_BASE_URL = 'http://localhost:3000/api';
-
 export function ClubsProvider({ children }: { children: ReactNode }) {
   const [memberships, setMemberships] = useState<ClubMembership[]>([]);
   const [invites, setInvites] = useState<ClubInvite[]>([]);
@@ -100,280 +94,108 @@ export function ClubsProvider({ children }: { children: ReactNode }) {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      await Promise.all([loadStoredClubs(), loadStoredInvites()]);
+      await Promise.all([refreshClubs(), refreshInvites()]);
+    } catch (error) {
+      console.error('Failed to load clubs data:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const loadStoredClubs = async () => {
-    try {
-      const stored = await AsyncStorage.getItem(CLUBS_STORAGE_KEY);
-      if (stored) {
-        const data = JSON.parse(stored);
-        setMemberships(data.map((m: any) => ({
-          ...m,
-          joinedAt: new Date(m.joinedAt),
-          club: {
-            ...m.club,
-            createdAt: new Date(m.club.createdAt),
-            updatedAt: new Date(m.club.updatedAt),
-          }
-        })));
-      }
-    } catch (error) {
-      console.error('Failed to load stored clubs:', error);
-    }
-  };
-
-  const loadStoredInvites = async () => {
-    try {
-      const stored = await AsyncStorage.getItem(INVITES_STORAGE_KEY);
-      if (stored) {
-        const data = JSON.parse(stored);
-        setInvites(data.map((i: any) => ({
-          ...i,
-          invitedAt: new Date(i.invitedAt),
-        })));
-      }
-    } catch (error) {
-      console.error('Failed to load stored invites:', error);
-    }
-  };
-
-  const saveMemberships = async (data: ClubMembership[]) => {
-    await AsyncStorage.setItem(CLUBS_STORAGE_KEY, JSON.stringify(data));
-    setMemberships(data);
-  };
-
-  const saveInvites = async (data: ClubInvite[]) => {
-    await AsyncStorage.setItem(INVITES_STORAGE_KEY, JSON.stringify(data));
-    setInvites(data);
-  };
-
   const createClub = async (name: string, description: string): Promise<Club> => {
-    // TODO: Replace with actual API call
-    // const response = await fetch(`${API_BASE_URL}/clubs`, {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify({ name, description }),
-    // });
-
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
     if (!name.trim()) {
       throw new Error('Club name is required');
     }
 
-    const now = new Date();
-    const newClub: Club = {
-      id: 'club_' + Math.random().toString(36).substring(2, 15),
-      name: name.trim(),
-      description: description.trim(),
-      image: null,
-      preferences: {
-        timezone: 'UTC',
-        distanceUnit: 'km',
-      },
-      createdAt: now,
-      updatedAt: now,
-      createdBy: user?.id ?? '',
-      memberCount: 1,
-    };
+    const response = await apiClient.post<Club>('/clubs/clubs', { 
+      name: name.trim(), 
+      description: description.trim() 
+    });
 
-    const newMembership: ClubMembership = {
-      club: newClub,
-      role: 'admin',
-      joinedAt: now,
-    };
-
-    await saveMemberships([...memberships, newMembership]);
-    return newClub;
+    // Refresh clubs to get updated list
+    await refreshClubs();
+    
+    return response;
   };
 
   const getClubMembers = async (clubId: string): Promise<ClubMember[]> => {
-    // TODO: Replace with actual API call
-    await new Promise((resolve) => setTimeout(resolve, 300));
-
-    // Mock members for now - current user is always included
-    const mockMembers: ClubMember[] = [
-      {
-        id: user?.id ?? 'mock-user',
-        email: user?.email ?? 'you@example.com',
-        name: user?.name ?? 'You',
-        image: user?.image ?? null,
-        role: 'admin',
-        joinedAt: new Date(),
-      },
-      {
-        id: 'admin_1',
-        email: 'sarah@example.com',
-        name: 'Sarah Admin',
-        image: 'https://i.pravatar.cc/150?img=5',
-        role: 'admin',
-        joinedAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000),
-      },
-      {
-        id: 'member_1',
-        email: 'john@example.com',
-        name: 'John Doe',
-        image: 'https://i.pravatar.cc/150?img=2',
-        role: 'member',
-        joinedAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-      },
-      {
-        id: 'member_2',
-        email: 'jane@example.com',
-        name: 'Jane Smith',
-        image: 'https://i.pravatar.cc/150?img=3',
-        role: 'member',
-        joinedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
-      },
-    ];
-
-    return mockMembers;
+    const members = await apiClient.get<ClubMember[]>(`/clubs/clubs/${clubId}/members`);
+    return members.map(m => ({
+      ...m,
+      joinedAt: new Date(m.joinedAt),
+    }));
   };
 
   const updateClubPreferences = async (clubId: string, preferences: Partial<ClubPreferences>): Promise<void> => {
-    // TODO: Replace with actual API call
-    await new Promise((resolve) => setTimeout(resolve, 300));
-
-    const updatedMemberships = memberships.map((m) => {
-      if (m.club.id === clubId) {
-        return {
-          ...m,
-          club: {
-            ...m.club,
-            preferences: { ...m.club.preferences, ...preferences },
-            updatedAt: new Date(),
-          },
-        };
-      }
-      return m;
-    });
-
-    await saveMemberships(updatedMemberships);
+    await apiClient.put(`/clubs/clubs/${clubId}/preferences`, { preferences });
+    await refreshClubs();
   };
 
   const leaveClub = async (clubId: string): Promise<void> => {
-    // TODO: Replace with actual API call
-    await new Promise((resolve) => setTimeout(resolve, 300));
-
-    const updatedMemberships = memberships.filter((m) => m.club.id !== clubId);
-    await saveMemberships(updatedMemberships);
+    await apiClient.delete(`/clubs/clubs/${clubId}/leave`);
+    await refreshClubs();
   };
 
   const inviteToClub = async (clubId: string, email: string): Promise<void> => {
-    // TODO: Replace with actual API call
-    await new Promise((resolve) => setTimeout(resolve, 300));
-
     if (!email.trim() || !email.includes('@')) {
       throw new Error('Valid email is required');
     }
-
-    // In a real app, this would send an invite to the user's account
-    console.log(`Invite sent to ${email} for club ${clubId}`);
+    
+    await apiClient.post(`/clubs/clubs/${clubId}/invite`, { invitedUserEmail: email });
   };
 
   const kickMember = async (clubId: string, memberId: string): Promise<void> => {
-    // TODO: Replace with actual API call
-    await new Promise((resolve) => setTimeout(resolve, 300));
-
-    // Update member count in local state
-    const updatedMemberships = memberships.map((m) => {
-      if (m.club.id === clubId) {
-        return {
-          ...m,
-          club: {
-            ...m.club,
-            memberCount: Math.max(1, m.club.memberCount - 1),
-          },
-        };
-      }
-      return m;
-    });
-
-    await saveMemberships(updatedMemberships);
+    await apiClient.delete(`/clubs/clubs/${clubId}/members/${memberId}`);
+    await refreshClubs();
   };
 
   const promoteMember = async (clubId: string, memberId: string): Promise<void> => {
-    // TODO: Replace with actual API call
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    console.log(`Promoted member ${memberId} to admin in club ${clubId}`);
+    await apiClient.post(`/clubs/clubs/${clubId}/members/${memberId}/promote`, {});
   };
 
   const demoteMember = async (clubId: string, memberId: string): Promise<void> => {
-    // TODO: Replace with actual API call
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    console.log(`Demoted member ${memberId} to member in club ${clubId}`);
+    await apiClient.post(`/clubs/clubs/${clubId}/members/${memberId}/demote`, {});
   };
 
   const acceptInvite = async (inviteId: string): Promise<void> => {
-    // TODO: Replace with actual API call
-    await new Promise((resolve) => setTimeout(resolve, 300));
-
-    const invite = invites.find((i) => i.id === inviteId);
-    if (!invite) {
-      throw new Error('Invite not found');
-    }
-
-    // Create new membership
-    const now = new Date();
-    const newMembership: ClubMembership = {
-      club: {
-        id: invite.clubId,
-        name: invite.clubName,
-        description: '',
-        image: invite.clubImage,
-        preferences: {
-          timezone: 'UTC',
-          distanceUnit: 'km',
-        },
-        createdAt: now,
-        updatedAt: now,
-        createdBy: '',
-        memberCount: 1,
-      },
-      role: 'member',
-      joinedAt: now,
-    };
-
-    // Remove invite and add membership
-    const updatedInvites = invites.filter((i) => i.id !== inviteId);
-    await saveInvites(updatedInvites);
-    await saveMemberships([...memberships, newMembership]);
+    await apiClient.post(`/clubs/invites/${inviteId}/accept`, {});
+    await Promise.all([refreshClubs(), refreshInvites()]);
   };
 
   const declineInvite = async (inviteId: string): Promise<void> => {
-    // TODO: Replace with actual API call
-    await new Promise((resolve) => setTimeout(resolve, 300));
-
-    const updatedInvites = invites.filter((i) => i.id !== inviteId);
-    await saveInvites(updatedInvites);
+    await apiClient.post(`/clubs/invites/${inviteId}/decline`, {});
+    await refreshInvites();
   };
 
   const refreshClubs = async (): Promise<void> => {
-    // TODO: Replace with actual API call to fetch clubs
-    await loadStoredClubs();
+    try {
+      const memberships = await apiClient.get<ClubMembership[]>('/clubs/clubs');
+      const formattedMemberships: ClubMembership[] = memberships.map(m => ({
+        club: {
+          ...m.club,
+          createdAt: new Date(m.club.createdAt),
+          updatedAt: new Date(m.club.updatedAt),
+        },
+        role: m.role,
+        joinedAt: new Date(m.joinedAt),
+      }));
+      setMemberships(formattedMemberships);
+    } catch (error) {
+      console.error('Failed to refresh clubs:', error);
+      throw error;
+    }
   };
 
   const refreshInvites = async (): Promise<void> => {
-    // TODO: Replace with actual API call to fetch invites
-    // For demo, add a mock invite if none exist
-    if (invites.length === 0) {
-      const mockInvite: ClubInvite = {
-        id: 'inv_' + Math.random().toString(36).substring(2, 15),
-        clubId: 'club_demo',
-        clubName: 'Running Enthusiasts',
-        clubImage: null,
-        invitedByName: 'Demo User',
-        invitedByEmail: 'demo@example.com',
-        invitedAt: new Date(),
-        status: 'pending',
-      };
-      await saveInvites([mockInvite]);
-    } else {
-      await loadStoredInvites();
+    try {
+      const fetchedInvites = await apiClient.get<ClubInvite[]>('/clubs/invites');
+      setInvites(fetchedInvites.map(invite => ({
+        ...invite,
+        invitedAt: new Date(invite.invitedAt),
+      })));
+    } catch (error) {
+      console.error('Failed to refresh invites:', error);
+      throw error;
     }
   };
 
