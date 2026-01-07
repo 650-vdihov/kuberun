@@ -40,3 +40,5 @@ yarn-error.log*
 
 # Test data
 test-data.sql
+test-grpc.sh
+setup-local-env.sh

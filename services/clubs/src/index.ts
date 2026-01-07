@@ -8,6 +8,7 @@ import { authMiddleware, getUser } from "./middleware/auth.js";
 import { db } from "./db/index.js";
 import { clubs, clubMembers, clubInvites } from "./db/schema.js";
 import { eq, and, sql, or, desc, inArray } from "drizzle-orm";
+import { startGrpcServer } from "./grpc-server.js";
 
 const app = new Hono();
 
@@ -500,6 +501,9 @@ app.put("/clubs/:id/preferences", authMiddleware(), async (c) => {
 
   return c.json(updated);
 });
+
+// Start gRPC server
+startGrpcServer(config.grpcPort);
 
 serve(
   {

@@ -38,8 +38,8 @@ function getEnvStringList(name: string, fallback: string[]): string[] {
 
 export const config = {
   port: getEnvInt("PORT", 4004),
-  activityDbUrl: getEnvString("ACTIVITY_DB_URL"),
-  clubsDbUrl: getEnvString("CLUBS_DB_URL"),
+  activityGrpcUrl: getEnvString("ACTIVITY_GRPC_URL", "localhost:50002"),
+  clubsGrpcUrl: getEnvString("CLUBS_GRPC_URL", "localhost:50003"),
   authServiceUrl: getEnvString("AUTH_SERVICE_URL", "http://localhost:4001"),
   trustedOrigins: getEnvStringList("TRUSTED_ORIGINS", ["http://localhost:4000"]),
   readinessTimeoutMs: getEnvInt("READINESS_TIMEOUT_MS", 3000),

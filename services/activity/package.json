@@ -11,6 +11,8 @@
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
+    "@grpc/grpc-js": "^1.12.4",
+    "@grpc/proto-loader": "^0.7.15",
     "@hono/node-server": "^1.19.6",
     "@repo/metrics": "workspace:*",
     "amqplib": "^0.10.5",

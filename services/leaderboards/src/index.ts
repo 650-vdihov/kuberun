@@ -5,14 +5,20 @@ import { logger } from "hono/logger";
 import { metricsHandler, metricsMiddleware } from "@repo/metrics";
 import { config } from "./config.js";
 import { authMiddleware, getUser } from "./middleware/auth.js";
-import { activityDb, clubsDb } from "./db/index.js";
-import { sql } from "drizzle-orm";
 import {
   startConsuming,
   isConnected as isRabbitMQConnected,
 } from "./rabbitmq.js";
+import {
+  initGrpcClients,
+  getClubMembers,
+  getRunStats,
+} from "./grpc-client.js";
 
 const app = new Hono();
+
+// Initialize gRPC clients
+initGrpcClients(config.activityGrpcUrl, config.clubsGrpcUrl);
 
 app.use("*", metricsMiddleware());
 app.use("*", logger());
@@ -39,51 +45,57 @@ app.get("/health", (c) => {
 app.get("/ready", async (c) => {
   const checks: { name: string; status: "ok" | "error"; error?: string }[] = [];
 
-  // Check activity database
-  try {
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(
-        () => reject(new Error("Database timeout")),
-        config.readinessTimeoutMs
-      )
-    );
-    const dbPromise = activityDb.execute(sql`SELECT 1`);
-
-    await Promise.race([dbPromise, timeoutPromise]);
-    checks.push({ name: "activity_database", status: "ok" });
-  } catch (err) {
-    checks.push({
-      name: "activity_database",
-      status: "error",
-      error: err instanceof Error ? err.message : "Unknown error",
-    });
-  }
-
-  // Check clubs database
-  try {
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(
-        () => reject(new Error("Database timeout")),
-        config.readinessTimeoutMs
-      )
-    );
-    const dbPromise = clubsDb.execute(sql`SELECT 1`);
-
-    await Promise.race([dbPromise, timeoutPromise]);
-    checks.push({ name: "clubs_database", status: "ok" });
-  } catch (err) {
-    checks.push({
-      name: "clubs_database",
-      status: "error",
-      error: err instanceof Error ? err.message : "Unknown error",
-    });
-  }
-
   // Check RabbitMQ
   if (isRabbitMQConnected()) {
     checks.push({ name: "rabbitmq", status: "ok" });
   } else {
     checks.push({ name: "rabbitmq", status: "error", error: "Not connected" });
+  }
+
+  // Check gRPC connections by making simple test calls
+  try {
+    await Promise.race([
+      getClubMembers("00000000-0000-0000-0000-000000000000"), // Use a valid UUID format
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("gRPC timeout")), config.readinessTimeoutMs)
+      ),
+    ]);
+    checks.push({ name: "clubs_grpc", status: "ok" });
+  } catch (err) {
+    // Only report error if it's a connection error, not a "not found" error
+    const errorMsg = err instanceof Error ? err.message : "Unknown error";
+    if (errorMsg.includes("UNAVAILABLE") || errorMsg.includes("timeout") || errorMsg.includes("ECONNREFUSED")) {
+      checks.push({
+        name: "clubs_grpc",
+        status: "error",
+        error: errorMsg,
+      });
+    } else {
+      // Service is reachable, just returned an expected error (like "not found")
+      checks.push({ name: "clubs_grpc", status: "ok" });
+    }
+  }
+
+  try {
+    await Promise.race([
+      getRunStats([], new Date().toISOString()),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("gRPC timeout")), config.readinessTimeoutMs)
+      ),
+    ]);
+    checks.push({ name: "activity_grpc", status: "ok" });
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : "Unknown error";
+    if (errorMsg.includes("UNAVAILABLE") || errorMsg.includes("timeout") || errorMsg.includes("ECONNREFUSED")) {
+      checks.push({
+        name: "activity_grpc",
+        status: "error",
+        error: errorMsg,
+      });
+    } else {
+      // Service is reachable
+      checks.push({ name: "activity_grpc", status: "ok" });
+    }
   }
 
   const allHealthy = checks.every((check) => check.status === "ok");
@@ -95,21 +107,13 @@ app.get("/club/:clubId/weekly", authMiddleware(), async (c) => {
   const user = getUser(c);
   const clubId = c.req.param("clubId");
 
-  // Check if user is a member of this club
-  const membership: any[] = await clubsDb.execute(
-    sql`SELECT * FROM club_members WHERE club_id = ${clubId} AND user_id = ${user.sub} LIMIT 1`
-  );
+  // Get club members via gRPC
+  const memberUserIds = await getClubMembers(clubId);
 
-  if (membership.length === 0) {
+  // Check if user is a member
+  if (!memberUserIds.includes(user.sub)) {
     return c.json({ message: "Not a member of this club" }, 403);
   }
-
-  // Get all club members
-  const members: any[] = await clubsDb.execute(
-    sql`SELECT user_id FROM club_members WHERE club_id = ${clubId}`
-  );
-
-  const memberUserIds = members.map((row: any) => row.user_id);
 
   if (memberUserIds.length === 0) {
     return c.json({ distance: [], activeTime: [] });
@@ -123,40 +127,29 @@ app.get("/club/:clubId/weekly", authMiddleware(), async (c) => {
   weekStart.setDate(now.getDate() + diffToMonday);
   weekStart.setHours(0, 0, 0, 0);
 
-  // Get runs for this week for all members
-  const runs: any[] = await activityDb.execute(
-    sql`
-      SELECT 
-        user_id,
-        SUM(COALESCE(CAST(distance AS NUMERIC), 0)) as total_distance,
-        SUM(COALESCE(duration, 0)) as total_duration
-      FROM runs
-      WHERE user_id = ANY(${sql.raw(`ARRAY[${memberUserIds.map(id => `'${id}'`).join(',')}]`)})
-        AND status = 'completed'
-        AND start_time >= ${weekStart.toISOString()}
-      GROUP BY user_id
-      ORDER BY total_distance DESC
-    `
-  );
+  // Get run stats via gRPC
+  const stats = await getRunStats(memberUserIds, weekStart.toISOString());
 
   // Format distance leaderboard
-  const distanceLeaderboard = runs.map((row: any, index: number) => ({
-    position: index + 1,
-    userId: row.user_id,
-    value: parseFloat(row.total_distance) / 1000, // Convert to km
-    unit: "km",
-    isCurrentUser: row.user_id === user.sub,
-  }));
+  const distanceLeaderboard = stats
+    .sort((a, b) => b.total_distance - a.total_distance)
+    .map((stat, index) => ({
+      position: index + 1,
+      userId: stat.user_id,
+      value: stat.total_distance / 1000, // Convert to km
+      unit: "km",
+      isCurrentUser: stat.user_id === user.sub,
+    }));
 
   // Format active time leaderboard (sorted by duration)
-  const timeLeaderboard = [...runs]
-    .sort((a: any, b: any) => parseInt(b.total_duration) - parseInt(a.total_duration))
-    .map((row: any, index: number) => ({
+  const timeLeaderboard = [...stats]
+    .sort((a, b) => b.total_duration - a.total_duration)
+    .map((stat, index) => ({
       position: index + 1,
-      userId: row.user_id,
-      value: parseFloat(row.total_duration) / 3600, // Convert to hours
+      userId: stat.user_id,
+      value: stat.total_duration / 3600, // Convert to hours
       unit: "hrs",
-      isCurrentUser: row.user_id === user.sub,
+      isCurrentUser: stat.user_id === user.sub,
     }));
 
   return c.json({
@@ -170,21 +163,13 @@ app.get("/club/:clubId/last-week", authMiddleware(), async (c) => {
   const user = getUser(c);
   const clubId = c.req.param("clubId");
 
-  // Check if user is a member
-  const membership = await clubsDb.execute(
-    sql`SELECT * FROM club_members WHERE club_id = ${clubId} AND user_id = ${user.sub} LIMIT 1`
-  );
+  // Get club members via gRPC
+  const memberUserIds = await getClubMembers(clubId);
 
-  if (membership.length === 0) {
+  // Check if user is a member
+  if (!memberUserIds.includes(user.sub)) {
     return c.json({ message: "Not a member of this club" }, 403);
   }
-
-  // Get all club members
-  const members = await clubsDb.execute(
-    sql`SELECT user_id FROM club_members WHERE club_id = ${clubId}`
-  );
-
-  const memberUserIds = members.map((row: any) => row.user_id);
 
   if (memberUserIds.length === 0) {
     return c.json({ distance: [], activeTime: [] });
@@ -201,39 +186,31 @@ app.get("/club/:clubId/last-week", authMiddleware(), async (c) => {
   const lastWeekStart = new Date(thisWeekStart);
   lastWeekStart.setDate(thisWeekStart.getDate() - 7);
 
-  // Get runs for last week
-  const runs: any[] = await activityDb.execute(
-    sql`
-      SELECT 
-        user_id,
-        SUM(COALESCE(CAST(distance AS NUMERIC), 0)) as total_distance,
-        SUM(COALESCE(duration, 0)) as total_duration
-      FROM runs
-      WHERE user_id = ANY(${sql.raw(`ARRAY[${memberUserIds.map(id => `'${id}'`).join(',')}]`)})
-        AND status = 'completed'
-        AND start_time >= ${lastWeekStart.toISOString()}
-        AND start_time < ${thisWeekStart.toISOString()}
-      GROUP BY user_id
-      ORDER BY total_distance DESC
-    `
+  // Get run stats via gRPC
+  const stats = await getRunStats(
+    memberUserIds,
+    lastWeekStart.toISOString(),
+    thisWeekStart.toISOString()
   );
 
-  const distanceLeaderboard = runs.map((row: any, index: number) => ({
-    position: index + 1,
-    userId: row.user_id,
-    value: parseFloat(row.total_distance) / 1000,
-    unit: "km",
-    isCurrentUser: row.user_id === user.sub,
-  }));
-
-  const timeLeaderboard = [...runs]
-    .sort((a: any, b: any) => parseInt(b.total_duration) - parseInt(a.total_duration))
-    .map((row: any, index: number) => ({
+  const distanceLeaderboard = stats
+    .sort((a, b) => b.total_distance - a.total_distance)
+    .map((stat, index) => ({
       position: index + 1,
-      userId: row.user_id,
-      value: parseFloat(row.total_duration) / 3600,
+      userId: stat.user_id,
+      value: stat.total_distance / 1000,
+      unit: "km",
+      isCurrentUser: stat.user_id === user.sub,
+    }));
+
+  const timeLeaderboard = [...stats]
+    .sort((a, b) => b.total_duration - a.total_duration)
+    .map((stat, index) => ({
+      position: index + 1,
+      userId: stat.user_id,
+      value: stat.total_duration / 3600,
       unit: "hrs",
-      isCurrentUser: row.user_id === user.sub,
+      isCurrentUser: stat.user_id === user.sub,
     }));
 
   return c.json({
@@ -247,21 +224,13 @@ app.get("/club/:clubId/monthly", authMiddleware(), async (c) => {
   const user = getUser(c);
   const clubId = c.req.param("clubId");
 
-  // Check if user is a member
-  const membership = await clubsDb.execute(
-    sql`SELECT * FROM club_members WHERE club_id = ${clubId} AND user_id = ${user.sub} LIMIT 1`
-  );
+  // Get club members via gRPC
+  const memberUserIds = await getClubMembers(clubId);
 
-  if (membership.length === 0) {
+  // Check if user is a member
+  if (!memberUserIds.includes(user.sub)) {
     return c.json({ message: "Not a member of this club" }, 403);
   }
-
-  // Get all club members
-  const members = await clubsDb.execute(
-    sql`SELECT user_id FROM club_members WHERE club_id = ${clubId}`
-  );
-
-  const memberUserIds = members.map((row: any) => row.user_id);
 
   if (memberUserIds.length === 0) {
     return c.json({ distance: [], activeTime: [] });
@@ -271,38 +240,27 @@ app.get("/club/:clubId/monthly", authMiddleware(), async (c) => {
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  // Get runs for this month
-  const runs: any[] = await activityDb.execute(
-    sql`
-      SELECT 
-        user_id,
-        SUM(COALESCE(CAST(distance AS NUMERIC), 0)) as total_distance,
-        SUM(COALESCE(duration, 0)) as total_duration
-      FROM runs
-      WHERE user_id = ANY(${sql.raw(`ARRAY[${memberUserIds.map(id => `'${id}'`).join(',')}]`)})
-        AND status = 'completed'
-        AND start_time >= ${monthStart.toISOString()}
-      GROUP BY user_id
-      ORDER BY total_distance DESC
-    `
-  );
+  // Get run stats via gRPC
+  const stats = await getRunStats(memberUserIds, monthStart.toISOString());
 
-  const distanceLeaderboard = runs.map((row: any, index: number) => ({
-    position: index + 1,
-    userId: row.user_id,
-    value: parseFloat(row.total_distance) / 1000,
-    unit: "km",
-    isCurrentUser: row.user_id === user.sub,
-  }));
-
-  const timeLeaderboard = [...runs]
-    .sort((a: any, b: any) => parseInt(b.total_duration) - parseInt(a.total_duration))
-    .map((row: any, index: number) => ({
+  const distanceLeaderboard = stats
+    .sort((a, b) => b.total_distance - a.total_distance)
+    .map((stat, index) => ({
       position: index + 1,
-      userId: row.user_id,
-      value: parseFloat(row.total_duration) / 3600,
+      userId: stat.user_id,
+      value: stat.total_distance / 1000,
+      unit: "km",
+      isCurrentUser: stat.user_id === user.sub,
+    }));
+
+  const timeLeaderboard = [...stats]
+    .sort((a, b) => b.total_duration - a.total_duration)
+    .map((stat, index) => ({
+      position: index + 1,
+      userId: stat.user_id,
+      value: stat.total_duration / 3600,
       unit: "hrs",
-      isCurrentUser: row.user_id === user.sub,
+      isCurrentUser: stat.user_id === user.sub,
     }));
 
   return c.json({

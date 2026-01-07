@@ -7,14 +7,14 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
+    "@grpc/grpc-js": "^1.12.4",
+    "@grpc/proto-loader": "^0.7.15",
     "@hono/node-server": "^1.19.6",
     "@repo/metrics": "workspace:*",
     "amqplib": "^0.10.5",
     "dotenv": "^17.2.3",
-    "drizzle-orm": "^0.45.1",
     "hono": "^4.10.7",
-    "jose": "^5.9.6",
-    "postgres": "^3.4.7"
+    "jose": "^5.9.6"
   },
   "devDependencies": {
     "@types/amqplib": "^0.10.8",

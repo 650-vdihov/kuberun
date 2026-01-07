@@ -28,6 +28,7 @@ services:
     container_name: activity-service
     environment:
       PORT: 4002
+      GRPC_PORT: 50002
       DATABASE_URL: postgresql://user:password@activity-db:5432/activity_db
       AUTH_SERVICE_URL: http://auth-service:4001
       TRUSTED_ORIGINS: http://localhost:4000
@@ -53,6 +54,7 @@ services:
     container_name: clubs-service
     environment:
       PORT: 4003
+      GRPC_PORT: 50003
       DATABASE_URL: postgresql://user:password@clubs-db:5432/clubs_db
       AUTH_SERVICE_URL: http://auth-service:4001
       TRUSTED_ORIGINS: http://localhost:4000
@@ -71,8 +73,8 @@ services:
     container_name: leaderboards-service
     environment:
       PORT: 4004
-      ACTIVITY_DB_URL: postgresql://user:password@activity-db:5432/activity_db
-      CLUBS_DB_URL: postgresql://user:password@clubs-db:5432/clubs_db
+      ACTIVITY_GRPC_URL: activity-service:50002
+      CLUBS_GRPC_URL: clubs-service:50003
       AUTH_SERVICE_URL: http://auth-service:4001
       TRUSTED_ORIGINS: http://localhost:4000
       RABBITMQ_URL: amqp://user:password@rabbitmq:5672
@@ -82,10 +84,10 @@ services:
       RABBITMQ_CONNECTION_TIMEOUT_MS: 5000
       RABBITMQ_HEARTBEAT_SECONDS: 30
     depends_on:
-      activity-db:
-        condition: service_healthy
-      clubs-db:
-        condition: service_healthy
+      activity-service:
+        condition: service_started
+      clubs-service:
+        condition: service_started
       rabbitmq:
         condition: service_healthy
     networks:

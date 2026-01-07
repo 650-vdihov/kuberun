@@ -38,6 +38,7 @@ function getEnvStringList(name: string, fallback: string[]): string[] {
 
 export const config = {
   port: getEnvInt("PORT", 4002),
+  grpcPort: getEnvInt("GRPC_PORT", 50002),
   databaseUrl: getEnvString("DATABASE_URL"),
   authServiceUrl: getEnvString("AUTH_SERVICE_URL", "http://localhost:4001"),
   trustedOrigins: getEnvStringList("TRUSTED_ORIGINS", ["http://localhost:4000"]),
