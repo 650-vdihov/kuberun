@@ -276,6 +276,7 @@ serve(
   {
     fetch: app.fetch,
     port: config.port,
+    hostname: '0.0.0.0',
   },
   (info) => {
     console.log(`🚀 Leaderboards service is running on http://localhost:${info.port}`);

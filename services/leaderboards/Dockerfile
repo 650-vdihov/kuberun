@@ -22,6 +22,10 @@ COPY services/leaderboards ./services/leaderboards
 RUN pnpm --filter leaderboards... build
 RUN pnpm --filter leaderboards deploy -P /deploy
 
+# Copy proto files to dist (TypeScript doesn't copy .proto files)
+RUN mkdir -p /deploy/dist/proto
+RUN cp /repo/services/leaderboards/src/proto/*.proto /deploy/dist/proto/
+
 FROM node:20-slim AS runner
 WORKDIR /app
 

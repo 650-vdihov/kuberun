@@ -717,6 +717,7 @@ serve(
   {
     fetch: app.fetch,
     port: config.port,
+    hostname: '0.0.0.0',
   },
   (info) => {
     console.log(`Activity service is running on http://localhost:${info.port}`);

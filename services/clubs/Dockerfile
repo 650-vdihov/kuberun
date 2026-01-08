@@ -22,6 +22,10 @@ COPY services/clubs ./services/clubs
 RUN pnpm --filter clubs... build
 RUN pnpm --filter clubs deploy -P /deploy
 
+# Copy proto files to dist (TypeScript doesn't copy .proto files)
+RUN mkdir -p /deploy/dist/proto
+RUN cp /repo/services/clubs/src/proto/*.proto /deploy/dist/proto/
+
 FROM node:20-slim AS runner
 WORKDIR /app
 

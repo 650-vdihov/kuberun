@@ -509,6 +509,7 @@ serve(
   {
     fetch: app.fetch,
     port: config.port,
+    hostname: '0.0.0.0',
   },
   (info) => {
     console.log(`🚀 Clubs service is running on http://localhost:${info.port}`);

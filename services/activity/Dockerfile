@@ -22,6 +22,10 @@ COPY services/activity ./services/activity
 RUN pnpm --filter activity... build
 RUN pnpm --filter activity deploy -P /deploy
 
+# Copy proto files to dist (TypeScript doesn't copy .proto files)
+RUN mkdir -p /deploy/dist/proto
+RUN cp /repo/services/activity/src/proto/*.proto /deploy/dist/proto/
+
 FROM node:20-slim AS runner
 WORKDIR /app
 
