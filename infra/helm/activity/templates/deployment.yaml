@@ -36,6 +36,8 @@ spec:
                 secretKeyRef:
                   name: activity-secrets
                   key: rabbitmq-url
+            - name: AUTH_SERVICE_URL
+              value: "http://auth-auth.rso-app.svc.cluster.local:4001"
             - name: NODE_ENV
               value: {{ .Values.env.NODE_ENV | quote }}
           resources:
