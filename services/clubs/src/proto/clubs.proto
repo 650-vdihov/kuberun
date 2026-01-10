@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package clubs;
+
+service ClubsService {
+  rpc GetClubMembers (GetClubMembersRequest) returns (GetClubMembersResponse);
+}
+
+message GetClubMembersRequest {
+  string club_id = 1;
+}
+
+message GetClubMembersResponse {
+  repeated string user_ids = 1;
+}

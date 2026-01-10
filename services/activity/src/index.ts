@@ -13,6 +13,7 @@ import {
   publishRunCompleted,
   isConnected as isRabbitMQConnected,
 } from "./rabbitmq.js";
+import { startGrpcServer } from "./grpc-server.js";
 
 const app = new Hono();
 
@@ -708,11 +709,15 @@ app.get("/dashboard/featured", authMiddleware(), async (c) => {
 // Initialize RabbitMQ in background (non-blocking)
 initRabbitMQ();
 
+// Start gRPC server
+startGrpcServer(config.grpcPort);
+
 // Start server immediately
 serve(
   {
     fetch: app.fetch,
     port: config.port,
+    hostname: '0.0.0.0',
   },
   (info) => {
     console.log(`Activity service is running on http://localhost:${info.port}`);

@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package activity;
+
+service ActivityService {
+  rpc GetRunStats (GetRunStatsRequest) returns (GetRunStatsResponse);
+}
+
+message GetRunStatsRequest {
+  repeated string user_ids = 1;
+  string start_date = 2;  // ISO 8601 format
+  string end_date = 3;    // ISO 8601 format (optional)
+}
+
+message RunStats {
+  string user_id = 1;
+  double total_distance = 2;  // in meters
+  int32 total_duration = 3;   // in seconds
+}
+
+message GetRunStatsResponse {
+  repeated RunStats stats = 1;
+}

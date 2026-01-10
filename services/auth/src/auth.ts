@@ -46,6 +46,9 @@ export const auth = betterAuth({
   },
   secret: config.betterAuthSecret,
   trustedOrigins: config.trustedOrigins,
+  advanced: {
+    disableCSRFCheck: true, // Disable CSRF for mobile apps
+  },
   plugins: [
     // Bearer plugin: allows clients to use Authorization: Bearer <session_token>
     bearer(),

@@ -143,6 +143,7 @@ export default function HomeScreen() {
 
   const dailyDistancesKm = dailyDistances.distances.map((d) => d / 1000);
   const maxDistance = Math.max(...dailyDistancesKm, 1);
+  const CHART_HEIGHT = 160; // Fixed height for bars in pixels
 
   // Loading state
   if (isLoading) {
@@ -249,8 +250,8 @@ export default function HomeScreen() {
           <View style={styles.barChartContent}>
             {dailyDistances.days.map((day, index) => {
               const distance = dailyDistancesKm[index] || 0;
-              const heightPercentage =
-                maxDistance > 0 ? (distance / maxDistance) * 100 : 0;
+              const barHeight =
+                maxDistance > 0 ? (distance / maxDistance) * CHART_HEIGHT : 0;
 
               return (
                 <View key={`${day}-${index}`} style={styles.barContainer}>
@@ -266,7 +267,7 @@ export default function HomeScreen() {
                       style={[
                         styles.bar,
                         {
-                          height: `${Math.max(heightPercentage, 2)}%`,
+                          height: Math.max(barHeight, 4),
                           backgroundColor: accent,
                         },
                       ]}
@@ -486,7 +487,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-around",
     alignItems: "flex-end",
-    height: 200,
+    height: 240,
     paddingBottom: 0,
     paddingTop: 40,
   },
