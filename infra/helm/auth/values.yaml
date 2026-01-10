@@ -1,0 +1,37 @@
+replicaCount: 2
+
+image:
+  repository: rsoappcr.azurecr.io/auth
+  tag: v1
+  pullPolicy: Always
+
+service:
+  type: ClusterIP
+  port: 4001
+
+env:
+  NODE_ENV: "production"
+
+resources:
+  requests:
+    memory: "128Mi"
+    cpu: "100m"
+  limits:
+    memory: "256Mi"
+    cpu: "200m"
+
+readinessProbe:
+  httpGet:
+    path: /ready
+    port: 4001
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 3
+
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 4001
+  initialDelaySeconds: 10
+  periodSeconds: 30
+  timeoutSeconds: 3
