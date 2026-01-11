@@ -25,6 +25,9 @@ spec:
             - name: http
               containerPort: 4002
               protocol: TCP
+            - name: grpc
+              containerPort: 50002
+              protocol: TCP
           env:
             - name: DATABASE_URL
               valueFrom:
