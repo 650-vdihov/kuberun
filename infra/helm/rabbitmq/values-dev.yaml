@@ -1,0 +1,28 @@
+replicaCount: 1
+
+image:
+  repository: rabbitmq
+  tag: 3.13-management-alpine
+  pullPolicy: IfNotPresent
+
+auth:
+  # Default credentials - should be overridden during helm install
+  # Example: --set auth.username=myuser --set auth.password=strongpassword
+  username: user
+  password: password
+
+service:
+  type: ClusterIP
+  amqpPort: 5672
+  managementPort: 15672
+
+resources:
+  requests:
+    memory: "128Mi"
+    cpu: "50m"
+  limits:
+    memory: "256Mi"
+    cpu: "250m"
+
+persistence:
+  enabled: false  # Disable persistence in dev
