@@ -9,6 +9,7 @@ import { db } from "./db/index.js";
 import { clubs, clubMembers, clubInvites } from "./db/schema.js";
 import { eq, and, sql, or, desc, inArray } from "drizzle-orm";
 import { startGrpcServer } from "./grpc-server.js";
+import { initGrpcClient, getUserProfiles } from "./grpc-client.js";
 
 const app = new Hono();
 
@@ -188,7 +189,41 @@ app.get("/clubs/:id/members", authMiddleware(), async (c) => {
     .where(eq(clubMembers.clubId, clubId))
     .orderBy(desc(clubMembers.joinedAt));
 
-  return c.json(members);
+  // Fetch user profiles for all members
+  const userIds = members.map(m => m.userId);
+  console.log(`Fetching profiles for ${userIds.length} members`);
+  
+  try {
+    const profiles = await getUserProfiles(userIds);
+    console.log(`Received ${profiles.length} profiles`);
+    const profileMap = new Map(profiles.map(p => [p.user_id, p]));
+
+    // Combine member data with profile data
+    const membersWithProfiles = members.map(member => {
+      const profile = profileMap.get(member.userId);
+      return {
+        id: member.userId,
+        email: profile?.email || 'unknown@example.com',
+        name: profile?.name || 'Unknown User',
+        image: profile?.image || null,
+        role: member.role,
+        joinedAt: member.joinedAt,
+      };
+    });
+
+    return c.json(membersWithProfiles);
+  } catch (error) {
+    console.error('Error fetching user profiles:', error);
+    // Return members without profile data as fallback
+    return c.json(members.map(member => ({
+      id: member.userId,
+      email: 'unknown@example.com',
+      name: 'Unknown User',
+      image: null,
+      role: member.role,
+      joinedAt: member.joinedAt,
+    })));
+  }
 });
 
 // Invite user to club (admin only)
@@ -501,6 +536,9 @@ app.put("/clubs/:id/preferences", authMiddleware(), async (c) => {
 
   return c.json(updated);
 });
+
+// Initialize gRPC client
+initGrpcClient(config.activityGrpcUrl);
 
 // Start gRPC server
 startGrpcServer(config.grpcPort);

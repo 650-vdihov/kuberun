@@ -42,3 +42,4 @@ yarn-error.log*
 test-data.sql
 test-grpc.sh
 setup-local-env.sh
+services/leaderboards/test-rabbitmq.js

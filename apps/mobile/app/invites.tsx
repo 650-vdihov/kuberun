@@ -88,18 +88,16 @@ export default function InvitesScreen() {
 
     return (
       <View style={[styles.inviteCard, { backgroundColor: colors.background, borderColor: colors.icon + '30' }]}>
-        <View style={styles.inviteHeader}>
-          <View style={[styles.clubIconContainer, { backgroundColor: colors.tint + '20' }]}>
-            <Users size={24} color={colors.tint} />
-          </View>
-          <View style={styles.inviteInfo}>
-            <Text style={[styles.clubName, { color: colors.text }]}>{item.clubName}</Text>
-            <View style={styles.invitedByRow}>
-              <Mail size={12} color={colors.icon} />
-              <Text style={[styles.invitedBy, { color: colors.icon }]}>
-                Invited by {item.invitedByName}
-              </Text>
-            </View>
+        <View style={[styles.clubIconContainer, { backgroundColor: colors.tint + '20' }]}>
+          <Users size={24} color={colors.tint} />
+        </View>
+        <View style={styles.inviteInfo}>
+          <Text style={[styles.clubName, { color: colors.text }]} numberOfLines={1}>{item.clubName}</Text>
+          <View style={styles.invitedByRow}>
+            <Mail size={12} color={colors.icon} />
+            <Text style={[styles.invitedBy, { color: colors.icon }]} numberOfLines={1}>
+              Invited by {item.invitedByName}
+            </Text>
           </View>
         </View>
 
@@ -113,14 +111,12 @@ export default function InvitesScreen() {
                 onPress={() => handleDecline(item)}
               >
                 <X size={18} color={colors.icon} />
-                <Text style={[styles.declineButtonText, { color: colors.icon }]}>Decline</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.acceptButton, { backgroundColor: colors.tint }]}
                 onPress={() => handleAccept(item)}
               >
                 <Check size={18} color={colors.background} />
-                <Text style={[styles.acceptButtonText, { color: colors.background }]}>Accept</Text>
               </TouchableOpacity>
             </>
           )}
@@ -240,14 +236,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   inviteCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
     borderRadius: 12,
     borderWidth: 1,
     padding: 16,
-    gap: 16,
-  },
-  inviteHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    gap: 12,
   },
   clubIconContainer: {
     width: 48,
@@ -258,7 +252,7 @@ const styles = StyleSheet.create({
   },
   inviteInfo: {
     flex: 1,
-    marginLeft: 12,
+    minWidth: 0,
   },
   clubName: {
     fontSize: 16,
@@ -272,36 +266,26 @@ const styles = StyleSheet.create({
   },
   invitedBy: {
     fontSize: 13,
+    flex: 1,
   },
   inviteActions: {
     flexDirection: 'row',
-    gap: 12,
-    justifyContent: 'flex-end',
+    gap: 8,
   },
   declineButton: {
-    flexDirection: 'row',
+    width: 40,
+    height: 40,
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    justifyContent: 'center',
     borderRadius: 8,
     borderWidth: 1,
   },
-  declineButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
   acceptButton: {
-    flexDirection: 'row',
+    width: 40,
+    height: 40,
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    justifyContent: 'center',
     borderRadius: 8,
-  },
-  acceptButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
   },
   emptyState: {
     alignItems: 'center',

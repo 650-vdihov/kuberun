@@ -1,88 +1,90 @@
 import amqp from "amqplib";
 import { config } from "./config.js";
+import { db } from "./db/index.js";
+import { runs } from "./db/schema.js";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let connection: any = null;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let channel: any = null;
 let isConnecting = false;
-let reconnectTimeout: NodeJS.Timeout | null = null;
+let reconnectLoopRunning = false;
+let shouldRun = true;
 
-interface RunCompletedMessage {
+export interface RunCompletedMessage {
   runId: string;
   userId: string;
-  distance: number;
+  distance: string;
   duration: number;
-  completedAt: string;
+  pace: string;
+  avgSpeed: string;
+  calories: number;
+  startTime: Date;
+  endTime: Date;
+  completedAt: Date;
 }
 
-export async function connectRabbitMQ(): Promise<void> {
-  if (isConnecting || connection) {
-    return;
+// In-memory cache for leaderboard invalidation tracking
+// Maps clubId to a timestamp when it was last invalidated
+const leaderboardInvalidationCache = new Map<string, number>();
+
+async function connect(): Promise<boolean> {
+  if (isConnecting) {
+    return false;
+  }
+
+  // If already connected, verify the connection is still alive
+  if (connection && channel) {
+    return true;
   }
 
   isConnecting = true;
 
   try {
-    console.log("Connecting to RabbitMQ...");
-    
+    console.log("[RabbitMQ] Attempting to connect...");
+
+    // Add connection timeout and heartbeat to detect dead connections
     connection = await amqp.connect(config.rabbitmqUrl, {
-      heartbeat: config.rabbitmqHeartbeatSeconds,
       timeout: config.rabbitmqConnectionTimeoutMs,
+      heartbeat: config.rabbitmqHeartbeatSeconds,
     });
 
-    console.log("✓ Connected to RabbitMQ");
+    channel = await connection.createChannel();
 
-    // Handle connection errors
-    connection.on("error", (err: any) => {
-      console.error("RabbitMQ connection error:", err.message);
-      scheduleReconnect();
+    // Ensure the queue exists
+    await channel.assertQueue(config.rabbitmqRunCompletedQueue, { durable: true });
+
+    console.log("[RabbitMQ] Connected successfully");
+
+    // Set up consumer
+    await setupConsumer();
+
+    // Handle connection errors - clear references so reconnect loop picks it up
+    connection.on("error", (err: Error) => {
+      console.error("[RabbitMQ] Connection error:", err.message);
+      cleanupConnection();
     });
 
     connection.on("close", () => {
-      console.log("RabbitMQ connection closed");
-      connection = null;
-      channel = null;
-      scheduleReconnect();
+      console.log("[RabbitMQ] Connection closed");
+      cleanupConnection();
     });
 
-    // Create channel
-    channel = await connection.createChannel();
-    console.log("✓ RabbitMQ channel created");
-
-    // Declare queue
-    await channel.assertQueue(config.rabbitmqRunCompletedQueue, { durable: true });
-    console.log(`✓ Queue '${config.rabbitmqRunCompletedQueue}' asserted`);
-
     isConnecting = false;
-  } catch (error) {
-    console.error("Failed to connect to RabbitMQ:", error);
+    return true;
+  } catch (err) {
+    console.error(
+      "[RabbitMQ] Connection failed:",
+      err instanceof Error ? err.message : err
+    );
+    cleanupConnection();
     isConnecting = false;
-    scheduleReconnect();
+    return false;
   }
 }
 
-function scheduleReconnect(): void {
-  if (reconnectTimeout) {
-    return;
-  }
-
-  console.log(`Scheduling RabbitMQ reconnect in ${config.rabbitmqReconnectIntervalMs}ms...`);
-  reconnectTimeout = setTimeout(() => {
-    reconnectTimeout = null;
-    connectRabbitMQ();
-  }, config.rabbitmqReconnectIntervalMs);
-}
-
-export async function startConsuming(): Promise<void> {
-  // Start connection in background
-  connectRabbitMQ();
-
-  // Wait a bit for connection to establish
-  await new Promise((resolve) => setTimeout(resolve, 1000));
-
+async function setupConsumer(): Promise<void> {
   if (!channel) {
-    console.log("Channel not ready yet, will retry later");
     return;
   }
 
@@ -93,14 +95,14 @@ export async function startConsuming(): Promise<void> {
         if (msg) {
           try {
             const data: RunCompletedMessage = JSON.parse(msg.content.toString());
-            console.log("Received run completed event:", data);
+            console.log(`[RabbitMQ] Received run completed event for run ${data.runId}`);
 
-            // Here you would update leaderboard caches/aggregations
-            // For now, just acknowledge the message
+            // Process the run completion and wait for it to complete
+            await processRunCompletion(data);
             
             channel?.ack(msg);
           } catch (error) {
-            console.error("Error processing message:", error);
+            console.error("[RabbitMQ] Error processing message:", error);
             // Reject and requeue the message
             channel?.nack(msg, false, true);
           }
@@ -109,31 +111,118 @@ export async function startConsuming(): Promise<void> {
       { noAck: false }
     );
 
-    console.log(`✓ Consuming messages from '${config.rabbitmqRunCompletedQueue}'`);
+    console.log(`[RabbitMQ] Consumer set up for queue '${config.rabbitmqRunCompletedQueue}'`);
   } catch (error) {
-    console.error("Failed to start consuming:", error);
+    console.error("[RabbitMQ] Failed to set up consumer:", error);
   }
+}
+
+async function processRunCompletion(data: RunCompletedMessage): Promise<void> {
+  // Store the run data in the local database for leaderboard calculations
+  try {
+    await db.insert(runs).values({
+      id: data.runId,
+      userId: data.userId,
+      distance: data.distance,
+      duration: data.duration,
+      pace: data.pace,
+      avgSpeed: data.avgSpeed,
+      calories: data.calories,
+      startTime: new Date(data.startTime),
+      endTime: new Date(data.endTime),
+      completedAt: new Date(data.completedAt),
+    });
+    
+    console.log(`[Leaderboard] Successfully stored run ${data.runId} for user ${data.userId}`);
+  } catch (error) {
+    console.error(`[Leaderboard] Error storing run ${data.runId}:`, error);
+    throw error; // Re-throw to trigger nack
+  }
+}
+
+/**
+ * Get the last invalidation time for a club's leaderboard
+ * Can be used to implement cache-control mechanisms
+ */
+export function getLeaderboardLastInvalidated(clubId: string): number | undefined {
+  return leaderboardInvalidationCache.get(clubId);
+}
+
+/**
+ * Manually invalidate a club's leaderboard cache
+ */
+export function invalidateLeaderboard(clubId: string): void {
+  leaderboardInvalidationCache.set(clubId, Date.now());
+  console.log(`[Leaderboard] Invalidated cache for club ${clubId}`);
+}
+
+function cleanupConnection(): void {
+  connection = null;
+  channel = null;
+}
+
+/**
+ * Continuous reconnection loop that runs in the background.
+ * Checks connection status periodically and reconnects if needed.
+ */
+async function reconnectLoop(): Promise<void> {
+  if (reconnectLoopRunning) {
+    return;
+  }
+
+  reconnectLoopRunning = true;
+
+  while (shouldRun) {
+    // If not connected, try to connect
+    if (!connection || !channel) {
+      await connect();
+    }
+
+    // Wait before next check
+    await new Promise((resolve) => setTimeout(resolve, config.rabbitmqReconnectIntervalMs));
+  }
+
+  reconnectLoopRunning = false;
+}
+
+/**
+ * Initialize RabbitMQ connection in the background.
+ * This function returns immediately - connection happens asynchronously.
+ * A background loop continuously monitors and reconnects if needed.
+ * Use isConnected() to check connection status.
+ */
+export function initRabbitMQ(): void {
+  // Start initial connection attempt
+  connect().then(() => {
+    // Start the reconnection loop in background
+    reconnectLoop();
+  });
 }
 
 export function isConnected(): boolean {
-  return connection !== null && channel !== null;
+  return channel !== null && connection !== null;
 }
 
 export async function closeRabbitMQ(): Promise<void> {
-  if (reconnectTimeout) {
-    clearTimeout(reconnectTimeout);
-    reconnectTimeout = null;
-  }
+  shouldRun = false;
 
   if (channel) {
-    await channel.close();
+    try {
+      await channel.close();
+    } catch (err) {
+      console.error("[RabbitMQ] Error closing channel:", err);
+    }
     channel = null;
   }
 
   if (connection) {
-    await connection.close();
+    try {
+      await connection.close();
+    } catch (err) {
+      console.error("[RabbitMQ] Error closing connection:", err);
+    }
     connection = null;
   }
 
-  console.log("RabbitMQ connection closed");
+  console.log("[RabbitMQ] Connection closed");
 }

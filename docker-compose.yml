@@ -75,6 +75,7 @@ services:
       GRPC_PORT: 50003
       DATABASE_URL: postgresql://user:password@clubs-db:5432/clubs_db
       AUTH_SERVICE_URL: http://auth-service:4001
+      ACTIVITY_GRPC_URL: activity-service:50002
       TRUSTED_ORIGINS: http://localhost:4000
       READINESS_TIMEOUT_MS: 3000
     depends_on:
@@ -91,6 +92,7 @@ services:
     container_name: leaderboards-service
     environment:
       PORT: 4004
+      DATABASE_URL: postgresql://user:password@leaderboards-db:5432/leaderboards_db
       ACTIVITY_GRPC_URL: activity-service:50002
       CLUBS_GRPC_URL: clubs-service:50003
       AUTH_SERVICE_URL: http://auth-service:4001
@@ -102,6 +104,8 @@ services:
       RABBITMQ_CONNECTION_TIMEOUT_MS: 5000
       RABBITMQ_HEARTBEAT_SECONDS: 30
     depends_on:
+      leaderboards-db:
+        condition: service_healthy
       activity-service:
         condition: service_started
       clubs-service:
@@ -205,6 +209,26 @@ services:
     networks:
       - microservices-net
 
+  # PostgreSQL for Leaderboards Service
+  leaderboards-db:
+    image: postgres:16-alpine
+    container_name: leaderboards-db
+    environment:
+      POSTGRES_DB: leaderboards_db
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5438:5432"
+    volumes:
+      - leaderboards-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d leaderboards_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - microservices-net
+
   prometheus:
     image: prom/prometheus:v2.52.0
     container_name: prometheus
@@ -244,6 +268,7 @@ volumes:
   auth-db-data:
   activity-db-data:
   clubs-db-data:
+  leaderboards-db-data:
   prometheus-data:
   grafana-data:
 

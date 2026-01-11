@@ -26,17 +26,25 @@ Microservice for computing and serving leaderboards for clubs.
 ## Architecture
 
 This service:
-- Queries activity database for run data
-- Queries clubs database for membership data
-- Listens to RabbitMQ for real-time run completion events
-- Computes leaderboards on-demand (can be cached in future)
+- Receives run completion events via RabbitMQ
+- Stores run data locally in PostgreSQL database
+- Queries clubs service via gRPC for membership data
+- Computes leaderboards on-demand from local data
+
+## Database
+
+The service maintains its own PostgreSQL database with a `runs` table that stores:
+- Run ID, user ID
+- Distance, duration, pace, avg speed, calories
+- Start time, end time, completion timestamp
 
 ## Environment Variables
 
 ```bash
 PORT=4004
-ACTIVITY_DB_URL=postgresql://user:password@localhost:5436/activity_db
-CLUBS_DB_URL=postgresql://user:password@localhost:5437/clubs_db
+DATABASE_URL=postgresql://user:password@localhost:5438/leaderboards_db
+ACTIVITY_GRPC_URL=localhost:50002
+CLUBS_GRPC_URL=localhost:50003
 AUTH_SERVICE_URL=http://localhost:4001
 TRUSTED_ORIGINS=http://localhost:4000
 RABBITMQ_URL=amqp://user:password@localhost:5672
@@ -44,6 +52,7 @@ RABBITMQ_RUN_COMPLETED_QUEUE=run.completed
 RABBITMQ_HEARTBEAT_SECONDS=30
 RABBITMQ_CONNECTION_TIMEOUT_MS=10000
 RABBITMQ_RECONNECT_INTERVAL_MS=5000
+READINESS_TIMEOUT_MS=3000
 ```
 
 ## Development
@@ -54,12 +63,37 @@ RABBITMQ_RECONNECT_INTERVAL_MS=5000
 # 1. Start infrastructure (databases, RabbitMQ, nginx)
 docker-compose up -d
 
-# 2. Services run in Docker by default
+# 2. Generate and run database migrations (first time setup)
+cd services/leaderboards
+pnpm db:generate  # Already done - migration exists
+pnpm db:migrate   # Run migrations against database
+
+# 3. Services run in Docker by default
 # View logs for this service:
 docker logs leaderboards-service -f
 
-# 3. Rebuild after code changes
+# 4. Rebuild after code changes
 docker-compose up -d --build leaderboards-service
+```
+
+## Database Schema
+
+The `runs` table schema:
+```sql
+CREATE TABLE "runs" (
+  "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  "user_id" varchar(255) NOT NULL,
+  "distance" numeric(10, 2) NOT NULL,
+  "duration" integer NOT NULL,
+  "pace" numeric(5, 2),
+  "avg_speed" numeric(5, 2),
+  "calories" integer,
+  "start_time" timestamp NOT NULL,
+  "end_time" timestamp NOT NULL,
+  "completed_at" timestamp NOT NULL,
+  "created_at" timestamp DEFAULT now() NOT NULL
+);
+```
 ```
 
 **Note:** All services are containerized and managed via `docker-compose`. The `pnpm run dev` command is available for local development but requires manual setup of all dependencies.

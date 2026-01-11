@@ -38,6 +38,10 @@ function getEnvStringList(name: string, fallback: string[]): string[] {
 
 export const config = {
   port: getEnvInt("PORT", 4004),
+  databaseUrl: getEnvString(
+    "DATABASE_URL",
+    "postgresql://user:password@localhost:5438/leaderboards_db"
+  ),
   activityGrpcUrl: getEnvString("ACTIVITY_GRPC_URL", "localhost:50002"),
   clubsGrpcUrl: getEnvString("CLUBS_GRPC_URL", "localhost:50003"),
   authServiceUrl: getEnvString("AUTH_SERVICE_URL", "http://localhost:4001"),

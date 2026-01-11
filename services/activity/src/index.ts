@@ -78,12 +78,22 @@ app.get("/ready", async (c) => {
 app.get("/profile", authMiddleware(), async (c) => {
   const user = getUser(c);
 
-  const profile = await db.query.userProfiles.findFirst({
+  let profile = await db.query.userProfiles.findFirst({
     where: eq(userProfiles.userId, user.sub),
   });
 
   if (!profile) {
     return c.json({ message: "Profile not found" }, 404);
+  }
+
+  // Auto-update email if missing or different (to backfill existing profiles)
+  if (!profile.email || profile.email !== user.email) {
+    const [updated] = await db
+      .update(userProfiles)
+      .set({ email: user.email, updatedAt: new Date() })
+      .where(eq(userProfiles.userId, user.sub))
+      .returning();
+    profile = updated;
   }
 
   return c.json(profile);
@@ -106,6 +116,7 @@ app.post("/profile", authMiddleware(), async (c) => {
       .update(userProfiles)
       .set({
         name,
+        email: user.email,  // Update email from JWT
         gender,
         height,
         weight,
@@ -123,6 +134,7 @@ app.post("/profile", authMiddleware(), async (c) => {
       .values({
         userId: user.sub,
         name,
+        email: user.email,  // Get email from JWT
         gender,
         height,
         weight,

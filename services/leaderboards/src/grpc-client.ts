@@ -74,7 +74,24 @@ export function getRunStats(
     );
   });
 }
+export async function getUserProfiles(userIds: string[]): Promise<any[]> {
+  return new Promise((resolve, reject) => {
+    if (!activityClient) {
+      return reject(new Error("Activity gRPC client not initialized"));
+    }
 
+    activityClient.GetUserProfiles(
+      { user_ids: userIds },
+      (error: any, response: any) => {
+        if (error) {
+          console.error("Error calling GetUserProfiles:", error);
+          return reject(error);
+        }
+        resolve(response.profiles || []);
+      }
+    );
+  });
+}
 export function getClubMembers(club_id: string): Promise<string[]> {
   return new Promise((resolve, reject) => {
     clubsClient.GetClubMembers({ club_id }, (error: any, response: any) => {

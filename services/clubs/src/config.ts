@@ -41,6 +41,7 @@ export const config = {
   grpcPort: getEnvInt("GRPC_PORT", 50003),
   databaseUrl: getEnvString("DATABASE_URL"),
   authServiceUrl: getEnvString("AUTH_SERVICE_URL", "http://localhost:4001"),
+  activityGrpcUrl: getEnvString("ACTIVITY_GRPC_URL", "localhost:50002"),
   trustedOrigins: getEnvStringList("TRUSTED_ORIGINS", ["http://localhost:4000"]),
   readinessTimeoutMs: getEnvInt("READINESS_TIMEOUT_MS", 3000),
 } as const;

@@ -4,6 +4,7 @@ package activity;
 
 service ActivityService {
   rpc GetRunStats (GetRunStatsRequest) returns (GetRunStatsResponse);
+  rpc GetUserProfiles (GetUserProfilesRequest) returns (GetUserProfilesResponse);
 }
 
 message GetRunStatsRequest {
@@ -20,4 +21,19 @@ message RunStats {
 
 message GetRunStatsResponse {
   repeated RunStats stats = 1;
+}
+
+message GetUserProfilesRequest {
+  repeated string user_ids = 1;
+}
+
+message UserProfile {
+  string user_id = 1;
+  string name = 2;
+  string email = 3;
+  string image = 4;
+}
+
+message GetUserProfilesResponse {
+  repeated UserProfile profiles = 1;
 }

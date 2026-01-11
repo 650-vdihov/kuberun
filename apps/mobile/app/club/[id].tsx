@@ -147,6 +147,7 @@ export default function ClubDetailScreen() {
   };
 
   const handleKickMember = (member: ClubMember) => {
+    console.log('handleKickMember called for:', member.name, member.id);
     Alert.alert(
       'Remove Member',
       `Are you sure you want to remove ${member.name} from the club?`,
@@ -156,9 +157,11 @@ export default function ClubDetailScreen() {
           text: 'Remove',
           style: 'destructive',
           onPress: async () => {
+            console.log('Kicking member:', member.id, 'from club:', id);
             try {
               await kickMember(id!, member.id);
               await loadMembers();
+              Alert.alert('Success', `${member.name} has been removed`);
             } catch (error: any) {
               Alert.alert('Error', error.message || 'Failed to remove member');
             }
@@ -273,6 +276,16 @@ export default function ClubDetailScreen() {
   const renderMemberItem = ({ item }: { item: ClubMember }) => {
     const isCurrentUser = item.id === user?.id;
     const canManage = isAdmin && !isCurrentUser;
+    
+    console.log('Rendering member:', {
+      memberName: item.name,
+      memberId: item.id,
+      currentUserId: user?.id,
+      isCurrentUser,
+      isAdmin,
+      canManage,
+      memberRole: item.role
+    });
 
     return (
       <View style={[styles.memberCard, { borderColor: colors.icon + '30' }]}>
@@ -310,20 +323,22 @@ export default function ClubDetailScreen() {
               >
                 <Crown size={16} color={colors.tint} />
               </TouchableOpacity>
-            ) : isOwner ? (
+            ) : (
               <TouchableOpacity
                 style={[styles.actionButton, { backgroundColor: '#dc262620' }]}
                 onPress={() => handleDemoteMember(item)}
               >
                 <ShieldOff size={16} color="#dc2626" />
               </TouchableOpacity>
-            ) : null}
-            <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: '#dc262620' }]}
-              onPress={() => handleKickMember(item)}
-            >
-              <Trash2 size={16} color="#dc2626" />
-            </TouchableOpacity>
+            )}
+            {item.role === 'member' && (
+              <TouchableOpacity
+                style={[styles.actionButton, { backgroundColor: '#dc262620' }]}
+                onPress={() => handleKickMember(item)}
+              >
+                <Trash2 size={16} color="#dc2626" />
+              </TouchableOpacity>
+            )}
           </View>
         )}
       </View>
