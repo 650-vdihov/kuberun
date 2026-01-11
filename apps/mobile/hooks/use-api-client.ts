@@ -56,5 +56,16 @@ export function useApiClient() {
     }
   }, [handleAuthError]);
 
-  return { fetch, get, post };
+  const deleteRequest = useCallback(async <T>(url: string): Promise<T> => {
+    try {
+      return await apiClient.delete<T>(url);
+    } catch (error) {
+      if (error instanceof AuthError) {
+        await handleAuthError(error);
+      }
+      throw error;
+    }
+  }, [handleAuthError]);
+
+  return { fetch, get, post, delete: deleteRequest };
 }
