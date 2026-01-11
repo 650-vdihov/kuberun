@@ -141,7 +141,7 @@ export function ClubsProvider({ children }: { children: ReactNode }) {
       throw new Error('Valid email is required');
     }
     
-    await apiClient.post(`/clubs/clubs/${clubId}/invite`, { invitedUserEmail: email });
+    await apiClient.post(`/clubs/clubs/${clubId}/invite`, { email });
   };
 
   const kickMember = async (clubId: string, memberId: string): Promise<void> => {
@@ -198,10 +198,16 @@ export function ClubsProvider({ children }: { children: ReactNode }) {
 
   const refreshInvites = async (): Promise<void> => {
     try {
-      const fetchedInvites = await apiClient.get<ClubInvite[]>('/clubs/invites');
-      setInvites(fetchedInvites.map(invite => ({
-        ...invite,
-        invitedAt: new Date(invite.invitedAt),
+      const fetchedInvites = await apiClient.get<any[]>('/clubs/invites');
+      setInvites(fetchedInvites.map(item => ({
+        id: item.invite.id,
+        clubId: item.invite.clubId,
+        clubName: item.club.name,
+        clubImage: item.club.image,
+        invitedByName: 'Admin', // Backend doesn't return this yet
+        invitedByEmail: '', // Backend doesn't return this yet
+        invitedAt: new Date(item.invite.createdAt),
+        status: item.invite.status,
       })));
     } catch (error) {
       console.error('Failed to refresh invites:', error);
