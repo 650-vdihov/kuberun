@@ -434,6 +434,54 @@ app.post("/runs/:id/complete", authMiddleware(), async (c) => {
 
   const completedRun = updated[0];
 
+  // Enrich with weather data (non-blocking)
+  try {
+    // Use middle tracking point for location
+    if (points.length > 0) {
+      const middleIndex = Math.floor(points.length / 2);
+      const middlePoint = points[middleIndex];
+
+      const weatherResponse = await fetch(config.weatherFunctionUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          runId: completedRun.id,
+          latitude: middlePoint.latitude,
+          longitude: middlePoint.longitude,
+          timestamp: middlePoint.timestamp.toISOString(),
+        }),
+      });
+
+      if (weatherResponse.ok) {
+        const weatherData = await weatherResponse.json();
+        
+        // Update run with weather data
+        await db
+          .update(runs)
+          .set({
+            weatherCondition: weatherData.weatherCondition,
+            weatherTemp: weatherData.weatherTemp?.toString(),
+            weatherIcon: weatherData.weatherIcon,
+            weatherDescription: weatherData.weatherDescription,
+          })
+          .where(eq(runs.id, id));
+
+        // Update the returned object with weather data
+        completedRun.weatherCondition = weatherData.weatherCondition;
+        completedRun.weatherTemp = weatherData.weatherTemp?.toString();
+        completedRun.weatherIcon = weatherData.weatherIcon;
+        completedRun.weatherDescription = weatherData.weatherDescription;
+
+        console.log(`Weather enrichment successful for run ${id}: ${weatherData.weatherCondition}, ${weatherData.weatherTemp}°C`);
+      } else {
+        console.warn(`Weather enrichment failed for run ${id}: ${weatherResponse.status}`);
+      }
+    }
+  } catch (error) {
+    // Weather enrichment failure should not block run completion
+    console.error("Weather enrichment error (non-critical):", error);
+  }
+
   // Publish to RabbitMQ
   await publishRunCompleted({
     runId: completedRun.id,

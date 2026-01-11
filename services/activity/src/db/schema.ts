@@ -24,6 +24,11 @@ export const runs = pgTable("runs", {
   startTime: timestamp("start_time").notNull(),
   endTime: timestamp("end_time"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  // Weather enrichment fields
+  weatherCondition: varchar("weather_condition", { length: 20 }), // sunny, cloudy, rainy, snowy, stormy
+  weatherTemp: decimal("weather_temp", { precision: 4, scale: 1 }), // temperature in Celsius
+  weatherIcon: varchar("weather_icon", { length: 20 }), // icon category (same as condition)
+  weatherDescription: varchar("weather_description", { length: 255 }), // full description from API
 });
 
 export const runTrackingPoints = pgTable("run_tracking_points", {

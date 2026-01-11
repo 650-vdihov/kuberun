@@ -38,11 +38,29 @@ services:
       RABBITMQ_RECONNECT_INTERVAL_MS: 10000
       RABBITMQ_CONNECTION_TIMEOUT_MS: 5000
       RABBITMQ_HEARTBEAT_SECONDS: 30
+      WEATHER_FUNCTION_URL: http://weather-function:80/api/enrichWeather
     depends_on:
       activity-db:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      weather-function:
+        condition: service_started
+    networks:
+      - microservices-net
+
+  # Weather Function (Azure Function emulated locally)
+  weather-function:
+    build:
+      context: .
+      dockerfile: services/weather-function/Dockerfile
+    container_name: weather-function
+    environment:
+      AzureWebJobsStorage: ""
+      FUNCTIONS_WORKER_RUNTIME: node
+      WEATHERAPI_KEY: b5fcfd6768f94ce696c223239261001
+    ports:
+      - "7071:80"
     networks:
       - microservices-net
 
