@@ -12,6 +12,8 @@ This is a monorepo managed with pnpm workspaces and Turbo. The structure is orga
 
 - `apps/mobile/` - React Native/Expo mobile application
 - `services/` - Microservices
+- `infra/helm/` - Helm charts
+- `packages/` - Common packages to reuse in services
 
 ## Local Development
 
@@ -51,7 +53,12 @@ This is a monorepo managed with pnpm workspaces and Turbo. The structure is orga
 
 ### Running the Application
 
-- **Development mode** (runs all services):
+- **Development mode** (runs mobile app locally):
   ```bash
+  cd apps/mobile
   pnpm run dev
   ```
+
+## Documentation
+
+For detailed documentation, see [docs.md](./DOCS.md).

@@ -11,7 +11,7 @@ services:
       DATABASE_URL: postgresql://user:password@auth-db:5432/auth_db
       BETTER_AUTH_SECRET: CTR2s27sBkkyNKu3dLIv5KfjUwkrcG4g
       BETTER_AUTH_URL: http://localhost:4000/auth
-      RESEND_API_KEY: re_HKF2TkB9_DweZYLBQWrUyBRNEZLYonRYg
+      RESEND_API_KEY: <api-key>
       EMAIL_FROM: onboarding@resend.dev
       TRUSTED_ORIGINS: http://localhost:4000
     depends_on:
@@ -58,7 +58,7 @@ services:
     environment:
       AzureWebJobsStorage: ""
       FUNCTIONS_WORKER_RUNTIME: node
-      WEATHERAPI_KEY: b5fcfd6768f94ce696c223239261001
+      WEATHERAPI_KEY: <api-key>
     ports:
       - "7071:80"
     networks:
