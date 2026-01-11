@@ -83,14 +83,28 @@ app.get("/profile", authMiddleware(), async (c) => {
   });
 
   if (!profile) {
-    return c.json({ message: "Profile not found" }, 404);
+    // Auto-create profile with basic info from JWT
+    console.log(`Creating profile for user ${user.sub} (${user.email})`);
+    const [created] = await db
+      .insert(userProfiles)
+      .values({
+        userId: user.sub,
+        name: user.name || "User",
+        email: user.email,
+      })
+      .returning();
+    profile = created;
   }
 
-  // Auto-update email if missing or different (to backfill existing profiles)
-  if (!profile.email || profile.email !== user.email) {
+  // Auto-update email and name if missing or different (to backfill existing profiles)
+  if (!profile.email || profile.email !== user.email || (!profile.name && user.name)) {
     const [updated] = await db
       .update(userProfiles)
-      .set({ email: user.email, updatedAt: new Date() })
+      .set({ 
+        email: user.email, 
+        name: profile.name || user.name || "User",
+        updatedAt: new Date() 
+      })
       .where(eq(userProfiles.userId, user.sub))
       .returning();
     profile = updated;

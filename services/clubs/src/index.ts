@@ -191,16 +191,19 @@ app.get("/clubs/:id/members", authMiddleware(), async (c) => {
 
   // Fetch user profiles for all members
   const userIds = members.map(m => m.userId);
-  console.log(`Fetching profiles for ${userIds.length} members`);
+  console.log(`Fetching profiles for ${userIds.length} members:`, userIds);
   
   try {
     const profiles = await getUserProfiles(userIds);
-    console.log(`Received ${profiles.length} profiles`);
+    console.log(`Received ${profiles.length} profiles:`, JSON.stringify(profiles, null, 2));
     const profileMap = new Map(profiles.map(p => [p.user_id, p]));
 
     // Combine member data with profile data
     const membersWithProfiles = members.map(member => {
       const profile = profileMap.get(member.userId);
+      if (!profile) {
+        console.warn(`No profile found for user ${member.userId}`);
+      }
       return {
         id: member.userId,
         email: profile?.email || 'unknown@example.com',
@@ -214,6 +217,7 @@ app.get("/clubs/:id/members", authMiddleware(), async (c) => {
     return c.json(membersWithProfiles);
   } catch (error) {
     console.error('Error fetching user profiles:', error);
+    console.error('Error details:', error instanceof Error ? error.stack : error);
     // Return members without profile data as fallback
     return c.json(members.map(member => ({
       id: member.userId,
@@ -365,6 +369,28 @@ app.post("/invites/:id/decline", authMiddleware(), async (c) => {
   return c.json({ message: "Invite declined" });
 });
 
+// Delete club (owner only)
+app.delete("/clubs/:id", authMiddleware(), async (c) => {
+  const user = getUser(c);
+  const clubId = c.req.param("id");
+
+  const club = await db.query.clubs.findFirst({
+    where: eq(clubs.id, clubId),
+  });
+
+  if (!club) {
+    return c.json({ message: "Club not found" }, 404);
+  }
+
+  if (club.createdBy !== user.sub) {
+    return c.json({ message: "Only the club owner can delete the club" }, 403);
+  }
+
+  await db.delete(clubs).where(eq(clubs.id, clubId));
+
+  return c.json({ message: "Club deleted successfully" });
+});
+
 // Leave club
 app.delete("/clubs/:id/leave", authMiddleware(), async (c) => {
   const user = getUser(c);
@@ -386,7 +412,29 @@ app.delete("/clubs/:id/leave", authMiddleware(), async (c) => {
       .where(and(eq(clubMembers.clubId, clubId), eq(clubMembers.role, "admin")));
 
     if (adminCount[0].count === 1) {
-      return c.json({ message: "Cannot leave: you are the last admin" }, 400);
+      // If they're the last admin, automatically promote the oldest non-admin member
+      const oldestMember = await db.query.clubMembers.findFirst({
+        where: and(
+          eq(clubMembers.clubId, clubId),
+          eq(clubMembers.role, "member"),
+          sql`${clubMembers.userId} != ${user.sub}`
+        ),
+        orderBy: [clubMembers.joinedAt],
+      });
+
+      if (oldestMember) {
+        // Promote the oldest member to admin
+        await db
+          .update(clubMembers)
+          .set({ role: "admin" })
+          .where(and(
+            eq(clubMembers.clubId, clubId),
+            eq(clubMembers.userId, oldestMember.userId)
+          ));
+        
+        console.log(`Auto-promoted user ${oldestMember.userId} to admin as ${user.sub} left the club`);
+      }
+      // If no other members exist, allow leaving (club will have no admins)
     }
   }
 

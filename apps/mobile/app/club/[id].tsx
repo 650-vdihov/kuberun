@@ -89,6 +89,7 @@ export default function ClubDetailScreen() {
     memberships,
     getClubMembers,
     updateClubPreferences,
+    deleteClub,
     inviteToClub,
     kickMember,
     promoteMember,
@@ -232,6 +233,28 @@ export default function ClubDetailScreen() {
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to update distance unit');
     }
+  };
+
+  const handleDeleteClub = () => {
+    Alert.alert(
+      'Delete Club',
+      'Are you sure you want to delete this club? This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteClub(id!);
+              router.replace('/clubs');
+            } catch (error: any) {
+              Alert.alert('Error', error.message || 'Failed to delete club');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleLeaveClub = () => {
@@ -579,6 +602,20 @@ export default function ClubDetailScreen() {
                 </View>
               )}
             </View>
+
+            {/* Delete Club */}
+            {isOwner && (
+              <View style={[styles.settingGroup, { borderTopWidth: 1, borderTopColor: colors.icon + '30', paddingTop: 24 }]}>
+                <Text style={[styles.settingLabel, { color: colors.text }]}>Danger Zone</Text>
+                <TouchableOpacity
+                  style={[styles.leaveButton, { borderColor: '#dc2626', backgroundColor: '#dc262610' }]}
+                  onPress={handleDeleteClub}
+                >
+                  <Trash2 size={20} color="#dc2626" />
+                  <Text style={styles.leaveButtonText}>Delete Club</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </ScrollView>
         </View>
       </Modal>

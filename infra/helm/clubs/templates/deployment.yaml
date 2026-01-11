@@ -36,6 +36,8 @@ spec:
                   key: database-url
             - name: AUTH_SERVICE_URL
               value: "http://auth-auth.rso-app.svc.cluster.local:4001"
+            - name: ACTIVITY_GRPC_URL
+              value: "activity-activity.rso-app.svc.cluster.local:50002"
             - name: NODE_ENV
               value: {{ .Values.env.NODE_ENV | quote }}
           resources:
