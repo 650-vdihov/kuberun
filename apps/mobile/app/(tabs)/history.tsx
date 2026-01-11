@@ -1,9 +1,9 @@
-import { StyleSheet, View, TouchableOpacity, FlatList, ActivityIndicator, Modal, TextInput } from 'react-native';
+import { StyleSheet, View, TouchableOpacity, FlatList, ActivityIndicator, Modal, TextInput, Alert } from 'react-native';
 import { useState, useCallback, useEffect } from 'react';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
-import { Calendar, Clock, MapPin, TrendingUp, X, Filter } from 'lucide-react-native';
+import { Calendar, Clock, MapPin, TrendingUp, X, Filter, Trash2 } from 'lucide-react-native';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useApiClient } from '@/hooks/use-api-client';
 
@@ -281,6 +281,45 @@ export default function HistoryScreen() {
     fetchRuns(currentPage + 1, true);
   };
 
+  // Delete a run
+  const handleDeleteRun = (runId: string, runTitle: string) => {
+    Alert.alert(
+      'Delete Run',
+      `Are you sure you want to delete "${runTitle}"? This action cannot be undone.`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await apiClient.delete(`${API_BASE_URL}/activity/runs/${runId}`);
+              // Remove from local state
+              setDisplayedRuns(prev => prev.filter(run => run.id !== runId));
+              // Update pagination count
+              if (pagination) {
+                setPagination({
+                  ...pagination,
+                  total: pagination.total - 1,
+                });
+              }
+            } catch (error) {
+              console.error('Failed to delete run:', error);
+              Alert.alert(
+                'Error',
+                'Failed to delete run. Please try again.',
+                [{ text: 'OK' }]
+              );
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const renderRunItem = ({ item }: { item: RunHistory }) => (
     <TouchableOpacity 
       style={[
@@ -306,9 +345,16 @@ export default function HistoryScreen() {
             {formatTime(item.startTime)}
           </ThemedText>
         </View>
+        <TouchableOpacity 
+          style={styles.deleteButton}
+          onPress={() => handleDeleteRun(item.id, getRunTitle(item.startTime, item.avgSpeed))}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Trash2 size={18} color="#dc2626" />
+        </TouchableOpacity>
       </View>
       
-      <View style={styles.runStats}>
+      <View style={[styles.runStats, { borderTopColor: borderColor, borderBottomColor: borderColor }]}>
         <View style={styles.statItem}>
           <MapPin size={18} color={accent} />
           <View style={styles.statContent}>
@@ -346,7 +392,7 @@ export default function HistoryScreen() {
         </View>
       </View>
       
-      <View style={[styles.runFooter, { borderTopColor: borderColor }]}>
+      <View style={styles.runFooter}>
         <ThemedText style={[styles.routeName, { color: colors.text }]}>
           {getRunTitle(item.startTime, item.avgSpeed)}
         </ThemedText>
@@ -662,6 +708,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   runHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 12,
   },
   dateContainer: {
@@ -677,10 +726,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     opacity: 0.6,
   },
+  deleteButton: {
+    padding: 4,
+  },
   runStats: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 16,
+    paddingTop: 14,
+    paddingBottom: 14,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
     gap: 12,
   },
   statItem: {
@@ -705,8 +761,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 14,
-    borderTopWidth: 1,
   },
   routeName: {
     fontSize: 13,
