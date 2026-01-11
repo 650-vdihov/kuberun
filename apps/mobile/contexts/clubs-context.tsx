@@ -58,6 +58,7 @@ interface ClubsContextType {
   createClub: (name: string, description: string) => Promise<Club>;
   getClubMembers: (clubId: string) => Promise<ClubMember[]>;
   updateClubPreferences: (clubId: string, preferences: Partial<ClubPreferences>) => Promise<void>;
+  deleteClub: (clubId: string) => Promise<void>;
   leaveClub: (clubId: string) => Promise<void>;
   // Admin actions
   inviteToClub: (clubId: string, email: string) => Promise<void>;
@@ -128,6 +129,11 @@ export function ClubsProvider({ children }: { children: ReactNode }) {
 
   const updateClubPreferences = async (clubId: string, preferences: Partial<ClubPreferences>): Promise<void> => {
     await apiClient.put(`/clubs/clubs/${clubId}/preferences`, { preferences });
+    await refreshClubs();
+  };
+
+  const deleteClub = async (clubId: string): Promise<void> => {
+    await apiClient.delete(`/clubs/clubs/${clubId}`);
     await refreshClubs();
   };
 
@@ -224,6 +230,7 @@ export function ClubsProvider({ children }: { children: ReactNode }) {
         createClub,
         getClubMembers,
         updateClubPreferences,
+        deleteClub,
         leaveClub,
         inviteToClub,
         kickMember,

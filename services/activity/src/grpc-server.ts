@@ -74,7 +74,10 @@ async function getUserProfiles(call: any, callback: any) {
   try {
     const { user_ids } = call.request;
 
+    console.log(`[gRPC] getUserProfiles called with ${user_ids?.length || 0} user IDs:`, user_ids);
+
     if (!user_ids || user_ids.length === 0) {
+      console.log("[gRPC] No user IDs provided, returning empty array");
       return callback(null, { profiles: [] });
     }
 
@@ -89,11 +92,12 @@ async function getUserProfiles(call: any, callback: any) {
       .from(userProfiles)
       .where(inArray(userProfiles.userId, user_ids));
 
-    console.log("Activity Service sending profiles:", JSON.stringify(profiles, null, 2));
+    console.log(`[gRPC] Found ${profiles.length} profiles in database`);
+    console.log("[gRPC] Profiles:", JSON.stringify(profiles, null, 2));
 
     callback(null, { profiles });
   } catch (error) {
-    console.error("Error in getUserProfiles:", error);
+    console.error("[gRPC] Error in getUserProfiles:", error);
     callback({
       code: grpc.status.INTERNAL,
       details: error instanceof Error ? error.message : "Internal error",
