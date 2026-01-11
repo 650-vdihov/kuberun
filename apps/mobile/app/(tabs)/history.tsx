@@ -21,6 +21,10 @@ interface RunHistory {
   avgSpeed: string | null; // km/h
   calories: number | null;
   status: string;
+  weatherCondition?: string | null; // sunny, cloudy, rainy, snowy, stormy
+  weatherTemp?: string | null; // temperature in Celsius
+  weatherIcon?: string | null; // icon category
+  weatherDescription?: string | null; // full description
 }
 
 interface PaginationInfo {
@@ -147,6 +151,18 @@ export default function HistoryScreen() {
   const formatTime = (dateStr: string): string => {
     const date = new Date(dateStr);
     return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const getWeatherIcon = (condition?: string | null): string => {
+    if (!condition) return '';
+    switch (condition) {
+      case 'sunny': return '☀️';
+      case 'cloudy': return '☁️';
+      case 'rainy': return '🌧️';
+      case 'snowy': return '❄️';
+      case 'stormy': return '⛈️';
+      default: return '';
+    }
   };
 
   // Generate run title based on time of day and average speed
@@ -334,11 +350,18 @@ export default function HistoryScreen() {
         <ThemedText style={[styles.routeName, { color: colors.text }]}>
           {getRunTitle(item.startTime, item.avgSpeed)}
         </ThemedText>
-        {item.calories != null && (
-          <ThemedText style={[styles.calories, { color: accent }]}>
-            {item.calories} cal
-          </ThemedText>
-        )}
+        <View style={styles.footerRight}>
+          {item.weatherCondition && (
+            <ThemedText style={[styles.weather, { color: colors.text }]}>
+              {getWeatherIcon(item.weatherCondition)} {item.weatherTemp ? `${Math.round(parseFloat(item.weatherTemp))}°C` : ''}
+            </ThemedText>
+          )}
+          {item.calories != null && (
+            <ThemedText style={[styles.calories, { color: accent }]}>
+              {item.calories} cal
+            </ThemedText>
+          )}
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -689,6 +712,15 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '500',
     opacity: 0.8,
+  },
+  footerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  weather: {
+    fontSize: 12,
+    fontWeight: '500',
   },
   calories: {
     fontSize: 12,

@@ -51,5 +51,9 @@ export const config = {
   rabbitmqReconnectIntervalMs: getEnvInt("RABBITMQ_RECONNECT_INTERVAL_MS", 10000),
   rabbitmqConnectionTimeoutMs: getEnvInt("RABBITMQ_CONNECTION_TIMEOUT_MS", 5000),
   rabbitmqHeartbeatSeconds: getEnvInt("RABBITMQ_HEARTBEAT_SECONDS", 30),
+  weatherFunctionUrl: getEnvString(
+    "WEATHER_FUNCTION_URL",
+    "http://localhost:7071/api/enrichWeather"
+  ),
 } as const;
 
