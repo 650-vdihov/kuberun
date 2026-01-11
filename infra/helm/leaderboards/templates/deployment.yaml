@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-leaderboards
+  labels:
+    app: leaderboards
+    release: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: leaderboards
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: leaderboards
+        release: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: leaderboards
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 4004
+              protocol: TCP
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: leaderboards-secrets
+                  key: database-url
+            - name: RABBITMQ_URL
+              valueFrom:
+                secretKeyRef:
+                  name: leaderboards-secrets
+                  key: rabbitmq-url
+            - name: ACTIVITY_GRPC_URL
+              value: "activity-activity.rso-app.svc.cluster.local:50002"
+            - name: CLUBS_GRPC_URL
+              value: "clubs-clubs.rso-app.svc.cluster.local:50003"
+            - name: AUTH_SERVICE_URL
+              value: "http://auth-auth.rso-app.svc.cluster.local:4001"
+            - name: NODE_ENV
+              value: {{ .Values.env.NODE_ENV | quote }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.readinessProbe | nindent 12 }}
+          livenessProbe:
+            {{- toYaml .Values.livenessProbe | nindent 12 }}

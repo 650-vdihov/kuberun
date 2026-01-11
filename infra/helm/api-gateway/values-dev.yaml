@@ -1,0 +1,48 @@
+replicaCount: 1
+
+image:
+  repository: nginx
+  tag: alpine
+  pullPolicy: IfNotPresent
+
+service:
+  type: LoadBalancer
+  port: 80
+
+# Service names for upstream configuration
+# These should match the Helm release names of your services
+upstreams:
+  auth:
+    name: auth-auth
+    port: 4001
+  activity:
+    name: activity-activity
+    port: 4002
+  clubs:
+    name: clubs-clubs
+    port: 4003
+  leaderboards:
+    name: leaderboards-leaderboards
+    port: 4004
+
+resources:
+  requests:
+    memory: "32Mi"
+    cpu: "25m"
+  limits:
+    memory: "64Mi"
+    cpu: "50m"
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: 80
+  initialDelaySeconds: 5
+  periodSeconds: 10
+
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 80
+  initialDelaySeconds: 5
+  periodSeconds: 30

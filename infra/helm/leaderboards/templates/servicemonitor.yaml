@@ -1,0 +1,16 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ .Release.Name }}-leaderboards
+  labels:
+    app: leaderboards
+    release: {{ .Release.Name }}
+spec:
+  selector:
+    matchLabels:
+      app: leaderboards
+      release: {{ .Release.Name }}
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s

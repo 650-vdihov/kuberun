@@ -37,7 +37,8 @@ yarn-error.log*
 # Misc
 .DS_Store
 *.pem
-
+kubectl
+AKS-deploy.md
 # Test data
 test-data.sql
 test-grpc.sh

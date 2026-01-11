@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-leaderboards
+  labels:
+    app: leaderboards
+    release: {{ .Release.Name }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: 4004
+      protocol: TCP
+  selector:
+    app: leaderboards
+    release: {{ .Release.Name }}
