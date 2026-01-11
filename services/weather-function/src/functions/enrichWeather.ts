@@ -197,6 +197,6 @@ export async function enrichWeather(
 
 app.http("enrichWeather", {
   methods: ["POST"],
-  authLevel: "anonymous",
+  authLevel: "function",
   handler: enrichWeather,
 });

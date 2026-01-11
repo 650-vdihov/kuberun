@@ -80,3 +80,11 @@ The function maps WeatherAPI condition codes to 5 categories:
        "timestamp": "2026-01-10T14:30:00Z"
      }'
    ```
+
+## Deployment Notes (Azure Functions)
+
+This project uses the Node.js v4 programming model (`@azure/functions` + `app.http(...)`) and does not generate `function.json` files. In Azure, ensure worker indexing is enabled or the portal/CLI will report 0 functions.
+
+- Function App settings: set `AzureWebJobsFeatureFlags=EnableWorkerIndexing` (and ensure `FUNCTIONS_WORKER_RUNTIME=node`).
+- Publish (Linux): `func azure functionapp publish <APP_NAME> --build remote` (this repo’s `.funcignore` excludes `node_modules` and `dist`).
+- Optional: run `npm run build` locally first to catch TypeScript errors before publishing.

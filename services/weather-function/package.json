@@ -3,9 +3,10 @@
   "version": "1.0.0",
   "description": "Azure Function to enrich run data with weather information",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc -p tsconfig.json",
     "watch": "tsc --watch",
     "clean": "rm -rf dist",
+    "prestart": "npm run build",
     "start": "func start",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -17,5 +18,5 @@
     "typescript": "^5.3.3",
     "azure-functions-core-tools": "^4.0.5455"
   },
-  "main": "dist/src/functions/*.js"
+  "main": "dist/src/index.js"
 }
