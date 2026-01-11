@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-clubs
+  labels:
+    app: clubs
+    release: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: clubs
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: clubs
+        release: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: clubs
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 4003
+              protocol: TCP
+            - name: grpc
+              containerPort: 50003
+              protocol: TCP
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: clubs-secrets
+                  key: database-url
+            - name: AUTH_SERVICE_URL
+              value: "http://auth-auth.rso-app.svc.cluster.local:4001"
+            - name: NODE_ENV
+              value: {{ .Values.env.NODE_ENV | quote }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.readinessProbe | nindent 12 }}
+          livenessProbe:
+            {{- toYaml .Values.livenessProbe | nindent 12 }}

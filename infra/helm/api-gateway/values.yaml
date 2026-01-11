@@ -18,6 +18,12 @@ upstreams:
   activity:
     name: activity-activity
     port: 4002
+  clubs:
+    name: clubs-clubs
+    port: 4003
+  leaderboards:
+    name: leaderboards-leaderboards
+    port: 4004
 
 resources:
   requests:

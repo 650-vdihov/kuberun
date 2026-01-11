@@ -20,6 +20,14 @@ data:
             server {{ .Values.upstreams.activity.name }}:{{ .Values.upstreams.activity.port }};
         }
         
+        upstream clubs_service {
+            server {{ .Values.upstreams.clubs.name }}:{{ .Values.upstreams.clubs.port }};
+        }
+        
+        upstream leaderboards_service {
+            server {{ .Values.upstreams.leaderboards.name }}:{{ .Values.upstreams.leaderboards.port }};
+        }
+        
         server {
             listen 80;
             
@@ -44,6 +52,24 @@ data:
             location /activity {
                 rewrite ^/activity/?(.*)$ /$1 break;
                 proxy_pass http://activity_service;
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+            }
+            
+            location /clubs {
+                rewrite ^/clubs/?(.*)$ /$1 break;
+                proxy_pass http://clubs_service;
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+            }
+            
+            location /leaderboards {
+                rewrite ^/leaderboards/?(.*)$ /$1 break;
+                proxy_pass http://leaderboards_service;
                 proxy_set_header Host $host;
                 proxy_set_header X-Real-IP $remote_addr;
                 proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
