@@ -89,6 +89,8 @@ async function getUserProfiles(call: any, callback: any) {
       .from(userProfiles)
       .where(inArray(userProfiles.userId, user_ids));
 
+    console.log("Activity Service sending profiles:", JSON.stringify(profiles, null, 2));
+
     callback(null, { profiles });
   } catch (error) {
     console.error("Error in getUserProfiles:", error);

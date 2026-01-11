@@ -105,7 +105,18 @@ app.post("/profile", authMiddleware(), async (c) => {
 
   const { name, gender, height, weight, image } = body;
 
-  // Check if profile already exists
+  // Validate image: must be null, undefined, or a valid data URI
+  let validatedImage = image;
+  if (image && typeof image === 'string') {
+    // Check if it's a valid data URI (starts with data:image/)
+    if (!image.startsWith('data:image/')) {
+      // Invalid image data (could be email or other invalid value)
+      console.warn(`Invalid image data received for user ${user.sub}: ${image.substring(0, 50)}...`);
+      validatedImage = null;
+    }
+  }
+
+   // Check if profile already exists
   const existing = await db.query.userProfiles.findFirst({
     where: eq(userProfiles.userId, user.sub),
   });
@@ -120,7 +131,7 @@ app.post("/profile", authMiddleware(), async (c) => {
         gender,
         height,
         weight,
-        image,
+        image: validatedImage,
         updatedAt: new Date(),
       })
       .where(eq(userProfiles.userId, user.sub))
@@ -138,7 +149,7 @@ app.post("/profile", authMiddleware(), async (c) => {
         gender,
         height,
         weight,
-        image,
+        image: validatedImage,
       })
       .returning();
 
