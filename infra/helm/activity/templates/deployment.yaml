@@ -39,6 +39,11 @@ spec:
                 secretKeyRef:
                   name: activity-secrets
                   key: rabbitmq-url
+            - name: WEATHER_FUNCTION_URL
+              valueFrom:
+                secretKeyRef:
+                  name: activity-secrets
+                  key: weather-function-url
             - name: AUTH_SERVICE_URL
               value: "http://auth-auth.rso-app.svc.cluster.local:4001"
             - name: NODE_ENV
