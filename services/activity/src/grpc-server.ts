@@ -3,7 +3,7 @@ import * as protoLoader from "@grpc/proto-loader";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import { db } from "./db/index.js";
-import { runs } from "./db/schema.js";
+import { runs, userProfiles } from "./db/schema.js";
 import { sql, inArray, and, gte, lte } from "drizzle-orm";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -70,11 +70,41 @@ async function getRunStats(call: any, callback: any) {
   }
 }
 
+async function getUserProfiles(call: any, callback: any) {
+  try {
+    const { user_ids } = call.request;
+
+    if (!user_ids || user_ids.length === 0) {
+      return callback(null, { profiles: [] });
+    }
+
+    // Query user profiles
+    const profiles = await db
+      .select({
+        user_id: userProfiles.userId,
+        name: userProfiles.name,
+        email: userProfiles.email,
+        image: userProfiles.image,
+      })
+      .from(userProfiles)
+      .where(inArray(userProfiles.userId, user_ids));
+
+    callback(null, { profiles });
+  } catch (error) {
+    console.error("Error in getUserProfiles:", error);
+    callback({
+      code: grpc.status.INTERNAL,
+      details: error instanceof Error ? error.message : "Internal error",
+    });
+  }
+}
+
 export function startGrpcServer(port: number) {
   const server = new grpc.Server();
 
   server.addService(activityProto.ActivityService.service, {
     GetRunStats: getRunStats,
+    GetUserProfiles: getUserProfiles,
   });
 
   server.bindAsync(

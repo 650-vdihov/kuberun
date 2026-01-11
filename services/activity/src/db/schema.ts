@@ -4,6 +4,7 @@ export const userProfiles = pgTable("user_profiles", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: varchar("user_id", { length: 255 }).notNull().unique(),
   name: varchar("name", { length: 255 }),
+  email: varchar("email", { length: 255 }),
   gender: varchar("gender", { length: 50 }), // e.g., 'male', 'female', 'other'
   height: decimal("height", { precision: 5, scale: 2 }), // in cm
   weight: decimal("weight", { precision: 5, scale: 2 }), // in kg

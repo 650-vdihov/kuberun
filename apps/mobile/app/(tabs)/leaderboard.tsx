@@ -13,6 +13,8 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 interface LeaderboardEntry {
   position: number;
   userId: string;
+  userName?: string;
+  userImage?: string | null;
   value: number;
   unit: string;
   isCurrentUser?: boolean;
@@ -222,11 +224,11 @@ export default function LeaderboardScreen() {
         <View style={styles.nameColumn}>
           <View style={styles.nameContainer}>
             <Image 
-              source={{ uri: `https://i.pravatar.cc/150?u=${item.userId}` }} 
+              source={{ uri: item.userImage || `https://i.pravatar.cc/150?u=${item.userId}` }} 
               style={styles.profilePicture} 
             />
             <ThemedText style={[styles.name, { color: colors.text }]}>
-              {item.isCurrentUser ? 'You' : `User ${item.position}`}
+              {item.isCurrentUser ? 'You' : (item.userName || `User ${item.position}`)}
             </ThemedText>
           </View>
         </View>

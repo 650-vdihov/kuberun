@@ -5,15 +5,55 @@ import { logger } from "hono/logger";
 import { metricsHandler, metricsMiddleware } from "@repo/metrics";
 import { config } from "./config.js";
 import { authMiddleware, getUser } from "./middleware/auth.js";
+import { db } from "./db/index.js";
+import { runs } from "./db/schema.js";
+import { inArray, sql, and, gte, lte } from "drizzle-orm";
 import {
-  startConsuming,
+  initRabbitMQ,
   isConnected as isRabbitMQConnected,
 } from "./rabbitmq.js";
 import {
   initGrpcClients,
   getClubMembers,
-  getRunStats,
+  getUserProfiles,
 } from "./grpc-client.js";
+
+// Helper function to get run stats from local database
+async function getLocalRunStats(
+  userIds: string[],
+  startDate: string,
+  endDate?: string
+) {
+  if (userIds.length === 0) {
+    return [];
+  }
+
+  const conditions = [inArray(runs.userId, userIds)];
+
+  if (startDate) {
+    conditions.push(gte(runs.startTime, new Date(startDate)));
+  }
+
+  if (endDate) {
+    conditions.push(lte(runs.startTime, new Date(endDate)));
+  }
+
+  const result = await db
+    .select({
+      user_id: runs.userId,
+      total_distance: sql<number>`COALESCE(SUM(CAST(${runs.distance} AS NUMERIC)), 0)`,
+      total_duration: sql<number>`COALESCE(SUM(${runs.duration}), 0)`,
+    })
+    .from(runs)
+    .where(and(...conditions))
+    .groupBy(runs.userId);
+
+  return result.map((row) => ({
+    user_id: row.user_id,
+    total_distance: Number(row.total_distance),
+    total_duration: Number(row.total_duration),
+  }));
+}
 
 const app = new Hono();
 
@@ -44,6 +84,23 @@ app.get("/health", (c) => {
 // Readiness check
 app.get("/ready", async (c) => {
   const checks: { name: string; status: "ok" | "error"; error?: string }[] = [];
+
+  // Check database connectivity
+  try {
+    await Promise.race([
+      db.execute(sql`SELECT 1`),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Database timeout")), config.readinessTimeoutMs)
+      ),
+    ]);
+    checks.push({ name: "database", status: "ok" });
+  } catch (err) {
+    checks.push({
+      name: "database",
+      status: "error",
+      error: err instanceof Error ? err.message : "Unknown error",
+    });
+  }
 
   // Check RabbitMQ
   if (isRabbitMQConnected()) {
@@ -76,28 +133,6 @@ app.get("/ready", async (c) => {
     }
   }
 
-  try {
-    await Promise.race([
-      getRunStats([], new Date().toISOString()),
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("gRPC timeout")), config.readinessTimeoutMs)
-      ),
-    ]);
-    checks.push({ name: "activity_grpc", status: "ok" });
-  } catch (err) {
-    const errorMsg = err instanceof Error ? err.message : "Unknown error";
-    if (errorMsg.includes("UNAVAILABLE") || errorMsg.includes("timeout") || errorMsg.includes("ECONNREFUSED")) {
-      checks.push({
-        name: "activity_grpc",
-        status: "error",
-        error: errorMsg,
-      });
-    } else {
-      // Service is reachable
-      checks.push({ name: "activity_grpc", status: "ok" });
-    }
-  }
-
   const allHealthy = checks.every((check) => check.status === "ok");
   return c.json({ ready: allHealthy, checks }, allHealthy ? 200 : 503);
 });
@@ -127,30 +162,44 @@ app.get("/club/:clubId/weekly", authMiddleware(), async (c) => {
   weekStart.setDate(now.getDate() + diffToMonday);
   weekStart.setHours(0, 0, 0, 0);
 
-  // Get run stats via gRPC
-  const stats = await getRunStats(memberUserIds, weekStart.toISOString());
+  // Get run stats from local database
+  const stats = await getLocalRunStats(memberUserIds, weekStart.toISOString());
+
+  // Get user profiles
+  const profiles = await getUserProfiles(memberUserIds);
+  const profileMap = new Map(profiles.map((p: any) => [p.user_id, p]));
 
   // Format distance leaderboard
   const distanceLeaderboard = stats
     .sort((a, b) => b.total_distance - a.total_distance)
-    .map((stat, index) => ({
-      position: index + 1,
-      userId: stat.user_id,
-      value: stat.total_distance / 1000, // Convert to km
-      unit: "km",
-      isCurrentUser: stat.user_id === user.sub,
-    }));
+    .map((stat, index) => {
+      const profile = profileMap.get(stat.user_id);
+      return {
+        position: index + 1,
+        userId: stat.user_id,
+        userName: profile?.name || "Unknown",
+        userImage: profile?.image || null,
+        value: stat.total_distance / 1000, // Convert to km
+        unit: "km",
+        isCurrentUser: stat.user_id === user.sub,
+      };
+    });
 
   // Format active time leaderboard (sorted by duration)
   const timeLeaderboard = [...stats]
     .sort((a, b) => b.total_duration - a.total_duration)
-    .map((stat, index) => ({
-      position: index + 1,
-      userId: stat.user_id,
-      value: stat.total_duration / 3600, // Convert to hours
-      unit: "hrs",
-      isCurrentUser: stat.user_id === user.sub,
-    }));
+    .map((stat, index) => {
+      const profile = profileMap.get(stat.user_id);
+      return {
+        position: index + 1,
+        userId: stat.user_id,
+        userName: profile?.name || "Unknown",
+        userImage: profile?.image || null,
+        value: stat.total_duration / 3600, // Convert to hours
+        unit: "hrs",
+        isCurrentUser: stat.user_id === user.sub,
+      };
+    });
 
   return c.json({
     distance: distanceLeaderboard,
@@ -186,32 +235,46 @@ app.get("/club/:clubId/last-week", authMiddleware(), async (c) => {
   const lastWeekStart = new Date(thisWeekStart);
   lastWeekStart.setDate(thisWeekStart.getDate() - 7);
 
-  // Get run stats via gRPC
-  const stats = await getRunStats(
+  // Get run stats from local database
+  const stats = await getLocalRunStats(
     memberUserIds,
     lastWeekStart.toISOString(),
     thisWeekStart.toISOString()
   );
 
+  // Get user profiles
+  const profiles = await getUserProfiles(memberUserIds);
+  const profileMap = new Map(profiles.map((p: any) => [p.user_id, p]));
+
   const distanceLeaderboard = stats
     .sort((a, b) => b.total_distance - a.total_distance)
-    .map((stat, index) => ({
-      position: index + 1,
-      userId: stat.user_id,
-      value: stat.total_distance / 1000,
-      unit: "km",
-      isCurrentUser: stat.user_id === user.sub,
-    }));
+    .map((stat, index) => {
+      const profile = profileMap.get(stat.user_id);
+      return {
+        position: index + 1,
+        userId: stat.user_id,
+        userName: profile?.name || "Unknown",
+        userImage: profile?.image || null,
+        value: stat.total_distance / 1000,
+        unit: "km",
+        isCurrentUser: stat.user_id === user.sub,
+      };
+    });
 
   const timeLeaderboard = [...stats]
     .sort((a, b) => b.total_duration - a.total_duration)
-    .map((stat, index) => ({
-      position: index + 1,
-      userId: stat.user_id,
-      value: stat.total_duration / 3600,
-      unit: "hrs",
-      isCurrentUser: stat.user_id === user.sub,
-    }));
+    .map((stat, index) => {
+      const profile = profileMap.get(stat.user_id);
+      return {
+        position: index + 1,
+        userId: stat.user_id,
+        userName: profile?.name || "Unknown",
+        userImage: profile?.image || null,
+        value: stat.total_duration / 3600,
+        unit: "hrs",
+        isCurrentUser: stat.user_id === user.sub,
+      };
+    });
 
   return c.json({
     distance: distanceLeaderboard,
@@ -240,28 +303,42 @@ app.get("/club/:clubId/monthly", authMiddleware(), async (c) => {
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  // Get run stats via gRPC
-  const stats = await getRunStats(memberUserIds, monthStart.toISOString());
+  // Get run stats from local database
+  const stats = await getLocalRunStats(memberUserIds, monthStart.toISOString());
+
+  // Get user profiles
+  const profiles = await getUserProfiles(memberUserIds);
+  const profileMap = new Map(profiles.map((p: any) => [p.user_id, p]));
 
   const distanceLeaderboard = stats
     .sort((a, b) => b.total_distance - a.total_distance)
-    .map((stat, index) => ({
-      position: index + 1,
-      userId: stat.user_id,
-      value: stat.total_distance / 1000,
-      unit: "km",
-      isCurrentUser: stat.user_id === user.sub,
-    }));
+    .map((stat, index) => {
+      const profile = profileMap.get(stat.user_id);
+      return {
+        position: index + 1,
+        userId: stat.user_id,
+        userName: profile?.name || "Unknown",
+        userImage: profile?.image || null,
+        value: stat.total_distance / 1000,
+        unit: "km",
+        isCurrentUser: stat.user_id === user.sub,
+      };
+    });
 
   const timeLeaderboard = [...stats]
     .sort((a, b) => b.total_duration - a.total_duration)
-    .map((stat, index) => ({
-      position: index + 1,
-      userId: stat.user_id,
-      value: stat.total_duration / 3600,
-      unit: "hrs",
-      isCurrentUser: stat.user_id === user.sub,
-    }));
+    .map((stat, index) => {
+      const profile = profileMap.get(stat.user_id);
+      return {
+        position: index + 1,
+        userId: stat.user_id,
+        userName: profile?.name || "Unknown",
+        userImage: profile?.image || null,
+        value: stat.total_duration / 3600,
+        unit: "hrs",
+        isCurrentUser: stat.user_id === user.sub,
+      };
+    });
 
   return c.json({
     distance: distanceLeaderboard,
@@ -269,8 +346,8 @@ app.get("/club/:clubId/monthly", authMiddleware(), async (c) => {
   });
 });
 
-// Start RabbitMQ consumer in background
-startConsuming();
+// Initialize RabbitMQ consumer in background
+initRabbitMQ();
 
 serve(
   {

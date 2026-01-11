@@ -26,6 +26,10 @@ RUN pnpm --filter leaderboards deploy -P /deploy
 RUN mkdir -p /deploy/dist/proto
 RUN cp /repo/services/leaderboards/src/proto/*.proto /deploy/dist/proto/
 
+# Copy drizzle migrations
+RUN mkdir -p /deploy/drizzle
+RUN cp -r /repo/services/leaderboards/drizzle /deploy/
+
 FROM node:20-slim AS runner
 WORKDIR /app
 

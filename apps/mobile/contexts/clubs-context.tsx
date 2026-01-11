@@ -145,16 +145,26 @@ export function ClubsProvider({ children }: { children: ReactNode }) {
   };
 
   const kickMember = async (clubId: string, memberId: string): Promise<void> => {
-    await apiClient.delete(`/clubs/clubs/${clubId}/members/${memberId}`);
-    await refreshClubs();
+    console.log('kickMember called with:', { clubId, memberId });
+    try {
+      const response = await apiClient.delete(`/clubs/clubs/${clubId}/members/${memberId}`);
+      console.log('kickMember response:', response);
+      await refreshClubs();
+      console.log('Clubs refreshed after kick');
+    } catch (error) {
+      console.error('Error in kickMember:', error);
+      throw error;
+    }
   };
 
   const promoteMember = async (clubId: string, memberId: string): Promise<void> => {
     await apiClient.post(`/clubs/clubs/${clubId}/members/${memberId}/promote`, {});
+    await refreshClubs();
   };
 
   const demoteMember = async (clubId: string, memberId: string): Promise<void> => {
     await apiClient.post(`/clubs/clubs/${clubId}/members/${memberId}/demote`, {});
+    await refreshClubs();
   };
 
   const acceptInvite = async (inviteId: string): Promise<void> => {
