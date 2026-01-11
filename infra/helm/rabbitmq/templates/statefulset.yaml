@@ -29,9 +29,15 @@ spec:
               name: management
           env:
             - name: RABBITMQ_DEFAULT_USER
-              value: {{ .Values.auth.username | quote }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-rabbitmq-auth
+                  key: username
             - name: RABBITMQ_DEFAULT_PASS
-              value: {{ .Values.auth.password | quote }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-rabbitmq-auth
+                  key: password
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           volumeMounts:
