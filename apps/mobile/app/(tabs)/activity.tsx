@@ -611,6 +611,7 @@ const styles = StyleSheet.create({
     fontSize: 36,
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
+    lineHeight: 44,
   },
   speedUnit: {
     fontSize: 18,
