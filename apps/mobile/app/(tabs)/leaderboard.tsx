@@ -6,7 +6,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
 import { useClubs } from '@/contexts/clubs-context';
 import { useApiClient } from '@/hooks/use-api-client';
-import { ChevronDown, Users, Check } from 'lucide-react-native';
+import { ChevronDown, Users, Check, User } from 'lucide-react-native';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -31,58 +31,6 @@ interface LeaderboardData {
 }
 
 type WeekType = 'this' | 'last';
-
-// Generate mock leaderboard data for a club
-const generateClubLeaderboard = (clubId: string, clubName: string, week: WeekType): LeaderboardData[] => {
-  // Use clubId to seed different data for each club
-  const seed = clubId.charCodeAt(0) || 1;
-  // Different multiplier for last week to simulate different results
-  const weekMultiplier = week === 'last' ? 0.85 : 1;
-  
-  // Shuffle positions slightly for last week
-  const distanceNames = week === 'last' 
-    ? ['Mike Sprint', 'Sarah Runner', 'John Walker', 'Emma Fast', 'Tom Jogger', 'Lisa Active', 'You', 'Amy Hiker', 'Chris Move', 'Dave Runner']
-    : ['Sarah Runner', 'Mike Sprint', 'Emma Fast', 'John Walker', 'Lisa Active', 'Tom Jogger', 'Amy Hiker', 'Chris Move', 'You', 'Dave Runner'];
-  
-  const distanceImages = week === 'last'
-    ? [12, 1, 13, 5, 15, 9, 33, 10, 14, 16]
-    : [1, 12, 5, 13, 9, 15, 10, 14, 33, 16];
-  
-  const distanceValues = [245.8, 198.2, 187.5, 156.3, 142.9, 128.4, 115.7, 98.6, 89.3, 85.2];
-  
-  const distanceEntries: LeaderboardEntry[] = distanceNames.map((name, i) => ({
-    position: i + 1,
-    name,
-    profilePicture: `https://i.pravatar.cc/150?img=${distanceImages[i]}`,
-    value: Math.round(distanceValues[i] * (seed % 3 + 0.5) * weekMultiplier * 10) / 10,
-    unit: 'km',
-    isCurrentUser: name === 'You',
-  }));
-
-  const timeNames = week === 'last'
-    ? ['Mike Sprint', 'Emma Fast', 'Lisa Active', 'Sarah Runner', 'You', 'Tom Jogger', 'John Walker', 'Amy Hiker', 'Chris Move', 'Dave Runner']
-    : ['Emma Fast', 'Mike Sprint', 'Sarah Runner', 'Lisa Active', 'Tom Jogger', 'John Walker', 'You', 'Amy Hiker', 'Chris Move', 'Dave Runner'];
-  
-  const timeImages = week === 'last'
-    ? [12, 5, 9, 1, 33, 15, 13, 10, 14, 16]
-    : [5, 12, 1, 9, 15, 13, 33, 10, 14, 16];
-  
-  const timeValues = [86.5, 72.3, 68.9, 61.2, 55.8, 48.4, 42.7, 38.1, 34.5, 31.2];
-  
-  const timeEntries: LeaderboardEntry[] = timeNames.map((name, i) => ({
-    position: i + 1,
-    name,
-    profilePicture: `https://i.pravatar.cc/150?img=${timeImages[i]}`,
-    value: Math.round(timeValues[i] * (seed % 2 + 0.7) * weekMultiplier * 10) / 10,
-    unit: 'hrs',
-    isCurrentUser: name === 'You',
-  }));
-
-  return [
-    { title: 'Distance', entries: distanceEntries },
-    { title: 'Active Time', entries: timeEntries },
-  ];
-};
 
 export default function LeaderboardScreen() {
   const { memberships } = useClubs();
@@ -223,10 +171,16 @@ export default function LeaderboardScreen() {
         
         <View style={styles.nameColumn}>
           <View style={styles.nameContainer}>
-            <Image 
-              source={{ uri: item.userImage || `https://i.pravatar.cc/150?u=${item.userId}` }} 
-              style={styles.profilePicture} 
-            />
+            {item.userImage ? (
+              <Image 
+                source={{ uri: item.userImage }} 
+                style={styles.profilePicture} 
+              />
+            ) : (
+              <View style={[styles.profilePicture, { backgroundColor: accent, justifyContent: 'center', alignItems: 'center' }]}>
+                <User size={24} color="#fff" />
+              </View>
+            )}
             <ThemedText style={[styles.name, { color: colors.text }]}>
               {item.isCurrentUser ? 'You' : (item.userName || `User ${item.position}`)}
             </ThemedText>
